@@ -55,13 +55,36 @@ def test_owner_pages_and_auth_separation(owner,workspace):
     assert anonymous.get('/companies').status_code==302
     assert anonymous.get('/companies').headers['Location']=='/login'
 
-def test_legacy_company_without_registration_timestamp(owner):
+@pytest.mark.parametrize('timestamp',[None,'missing'])
+def test_legacy_company_without_registration_timestamp(owner,timestamp):
     admin,post,backend,*_=owner
-    backend.database.businesses.update_one({'id':1},{'$unset':{'created_at':''}})
+    backend.database.businesses.update_one({'id':1},{'$unset':{'created_at':''}} if timestamp=='missing' else {'$set':{'created_at':None}})
     for path in ('/','/companies','/companies/1','/subscriptions'):
         response=admin.get(path)
         assert response.status_code==200,(path,response.data)
     assert b'Unknown' in admin.get('/').data
+
+def test_render_private_keys(monkeypatch):
+    from cryptography.fernet import Fernet
+    from admin_app import private_key
+    key=Fernet.generate_key().decode()
+    monkeypatch.setenv('RENDER','true')
+    monkeypatch.setenv('ADMIN_ENCRYPTION_KEY',key)
+    monkeypatch.setenv('ADMIN_SESSION_KEY','s'*64)
+    assert private_key('admin-encryption.key',True)==key.encode()
+    assert private_key('admin-session.key')==b's'*64
+    monkeypatch.delenv('ADMIN_ENCRYPTION_KEY')
+    with pytest.raises(RuntimeError,match='ADMIN_ENCRYPTION_KEY'): private_key('admin-encryption.key',True)
+
+def test_wrong_admin_encryption_key_has_actionable_error(owner):
+    from cryptography.fernet import Fernet
+    admin,post,backend,secret,password=owner
+    post('/logout',{})
+    backend.database.admin_users.update_one({'email':'admin@example.com'},{'$set':{'totp_secret':Fernet(Fernet.generate_key()).encrypt(secret.encode()).decode()}})
+    response=post('/login',dict(email='admin@example.com',password=password,code='000000'))
+    assert response.status_code==503
+    assert b'original ADMIN_ENCRYPTION_KEY' in response.data
+    assert backend.database.admin_sessions.count_documents({})==0
 
 def test_approval_rejection_and_idempotency(owner):
     admin,post,backend,*_=owner; pending,bid=register_pending(backend)

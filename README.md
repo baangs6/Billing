@@ -22,6 +22,14 @@ For the first owner, open the private link in `instance/admin-setup-url.txt` fro
 
 Owner accounts have separate identities, cookie names, signing secrets, encrypted TOTP seeds, replay prevention, login throttling and server-side sessions that expire after two hours. Keep `instance/admin-encryption.key` and `instance/admin-session.key` private and backed up with deployment secrets. Losing the encryption key makes authenticator seeds unreadable. The default owner server binds to loopback; production access requires an HTTPS reverse proxy with separate hostnames and appropriate network access controls.
 
+### Render admin deployment
+
+Deploy a separate Python Web Service with build command `pip install -r requirements.txt` and start command `waitress-serve --host=0.0.0.0 --port=$PORT admin_app:app`. Set `MONGODB_URI`, `MONGODB_DATABASE`, `HTTPS=1`, `ADMIN_ENCRYPTION_KEY`, and `ADMIN_SESSION_KEY` in Render Environment. The admin login is `https://YOUR-ADMIN-SERVICE.onrender.com/login`.
+
+When migrating the existing owner account, privately copy the contents of `instance/admin-encryption.key` into `ADMIN_ENCRYPTION_KEY`, and `instance/admin-session.key` into `ADMIN_SESSION_KEY`. Never post or commit these values. Keep them stable across deployments. The encryption key must match the key used to encrypt the existing owner's authenticator seed in MongoDB; a newly generated key cannot decrypt it. On Render, startup requires these environment variables instead of generating keys on an ephemeral filesystem. A wrong encryption key returns an actionable 503 message and grants no session. Retain the original files as a private backup.
+
+To diagnose a failed login, inspect the admin service's Render Logs at the time of the request. `cryptography.fernet.InvalidToken` indicates a mismatched encryption key. A dashboard error involving `created_at` may indicate legacy company data; missing and null registration timestamps are supported. Other tracebacks require their specific cause to be addressed.
+
 The console includes company search and pending approvals, approve/reject/review/suspend/reactivate/archive actions, company usage and users, plans, subscriptions, manual payment ledger, renewal review/rejection, audit history and registration/contact policy. It has no company impersonation or financial record deletion. Stored-byte usage is logical BSON size, not Atlas billed storage/index size.
 
 New registrations collect company/owner details, an optional logo and requested plan, and stay PENDING until reviewed. Trial access begins on approval. Company screens include staff, configurable company roles, subscription details/payment history and renewal requests. COMPANY_ADMIN, MANAGER, BILLING_STAFF and INVENTORY_STAFF are seeded per tenant; owner-role permissions and the last active company administrator are protected.

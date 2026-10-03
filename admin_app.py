@@ -2,6 +2,7 @@
 import base64
 import hashlib
 import hmac
+import os
 import re
 import secrets
 import struct
@@ -9,7 +10,7 @@ import time
 from datetime import timedelta
 from pathlib import Path
 from urllib.parse import quote
-from cryptography.fernet import Fernet
+from cryptography.fernet import Fernet, InvalidToken
 from flask import Flask, abort, flash, g, redirect, render_template, request, session, url_for
 from werkzeug.security import generate_password_hash, check_password_hash
 from pymongo.errors import DuplicateKeyError, PyMongoError
@@ -19,6 +20,15 @@ from saas import Platform, FEATURES, PERMISSIONS, now, stamp, digest, parse_stam
 ROOT=Path(__file__).parent
 
 def private_key(name,fernet=False):
+    environment_name={'admin-encryption.key':'ADMIN_ENCRYPTION_KEY','admin-session.key':'ADMIN_SESSION_KEY'}[name]
+    configured=os.environ.get(environment_name)
+    if configured:
+        value=configured.strip().encode()
+        if fernet: Fernet(value)
+        elif len(value)<32: raise ValueError(environment_name+' must contain at least 32 characters.')
+        return value
+    if os.environ.get('RENDER'):
+        raise RuntimeError('Set '+environment_name+' in Render Environment before starting the admin service. Use the existing private key when migrating an owner account.')
     path=ROOT/'instance'/name
     path.parent.mkdir(exist_ok=True)
     if not path.exists():
@@ -82,6 +92,10 @@ def create_admin_app(backend=None):
     def duplicate(error): return invalid(ValueError('A record already exists. Reload and check the name or email.'))
     @app.errorhandler(PyMongoError)
     def unavailable(error): return 'Database temporarily unavailable. Please try again shortly.',503
+    @app.errorhandler(InvalidToken)
+    def encryption_unavailable(error):
+        app.logger.error('Admin authenticator decryption failed. Configure ADMIN_ENCRYPTION_KEY with the original owner encryption key; do not replace the owner account.')
+        return 'Admin authentication is temporarily unavailable because the server encryption key does not match. The service owner must restore the original ADMIN_ENCRYPTION_KEY.',503
 
     @app.route('/setup/<token>',methods=['GET','POST'])
     def setup(token):
@@ -165,7 +179,7 @@ def create_admin_app(backend=None):
         companies=enriched_companies(); subs=[c['subscription'] for c in companies if c['subscription']]
         monthly=stamp()[:7]
         revenue=sum(p['amount'] for p in platform.rows('subscription_payments',{'date':{'$gte':monthly+'-01','$lt':monthly+'-32'}}))
-        metrics={'Total companies':len(companies),'Pending approvals':sum(c['effective_status']=='PENDING' for c in companies),'Active companies':sum(c['effective_status']=='ACTIVE' for c in companies),'Trials':sum(subscription_state(s)=='TRIAL' for s in subs),'Expired subscriptions':sum(subscription_state(s)=='EXPIRED' for s in subs),'Suspended companies':sum(c['effective_status']=='SUSPENDED' for c in companies),'Company users':backend.database.users.count_documents({}),'New this month':sum(c.get('created_at','')[:7]==monthly for c in companies)}
+        metrics={'Total companies':len(companies),'Pending approvals':sum(c['effective_status']=='PENDING' for c in companies),'Active companies':sum(c['effective_status']=='ACTIVE' for c in companies),'Trials':sum(subscription_state(s)=='TRIAL' for s in subs),'Expired subscriptions':sum(subscription_state(s)=='EXPIRED' for s in subs),'Suspended companies':sum(c['effective_status']=='SUSPENDED' for c in companies),'Company users':backend.database.users.count_documents({}),'New this month':sum((c.get('created_at') or '')[:7]==monthly for c in companies)}
         expiring=[c for c in companies if c['subscription'] and c['subscription'].get('expiry_at') and stamp()<c['subscription']['expiry_at']<=stamp(now()+timedelta(days=14))]
         return render_template('admin/dashboard.html',title='Platform overview',metrics=metrics,revenue=revenue,companies=companies[:8],expiring=expiring)
 
