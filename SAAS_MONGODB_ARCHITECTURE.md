@@ -1,0 +1,16 @@
+# MongoDB SaaS admin implementation
+
+The owner authorized creation of the admin panel after choosing MongoDB Atlas. This replaces the PostgreSQL proposal for the implemented panel.
+
+1. Architecture: two Flask services, company app on 5000 and owner app on 5001; separate route tables, secrets, cookies and admin identities. MongoDB Atlas holds tenant records and a distinct platform collection set. No company impersonation.
+2. Schema: existing business collections remain scoped by business_id. Add company roles, subscriptions, renewal requests; platform plans (immutable assignment snapshots), subscription payments, administrator identities/sessions, approval/audit events and system policy. Money remains Int64 paise. MongoDB has no foreign keys/RLS: repositories, explicit linked-record validation and tenant authorization are mandatory.
+3. Super Admin: protected dashboard, searchable companies and approval queue, company detail/usage, subscriptions, editable versioned plans, users, actual subscription payment ledger, audit history and onboarding settings. No financial record deletion.
+4. Company Admin: existing billing pages plus staff, configurable company roles and subscription/renewal screens. Pending/rejected/suspended/expired accounts have status/subscription access only.
+5. Permissions: seeded company admin, manager, billing staff and inventory staff with explicit company-only codes. Requests recheck active identity, role, subscription, feature and quota. Last company admin cannot be disabled.
+6. Approval: registration creates pending company and admin atomically. Owner approve/reject/review/suspend/reactivate/archive actions require notes and commit with audit. Existing migrated companies stay active on a legacy unlimited snapshot.
+7. Subscriptions: trial/active/expired/cancelled/suspended; exclusive UTC expiry, calendar month/year renewals; manual payment records with unique submission keys. Expiry checked at request time. Plan assignments copy immutable entitlements; editing plans cannot silently change current customers. Staff/product/monthly invoice limits and feature access enforced within company transactions.
+8. Billing: retain atomic numbering, revision, stock, payment and submission behavior. Quota checked only for first finalization. When inventory is disabled, tracked-product billing is blocked until reconciliation; free-text nonstock billing remains possible.
+9. Security: no default admin password or public admin registration. Local one-use expiring setup token; hashed password, encrypted TOTP seed, replay prevention, recovery codes, server-side expiring administrator sessions, login throttle, CSRF, audit, cookie isolation and security headers. HTTPS, scoped deployment credentials, secret storage and offsite backup are deployment tasks. Email verification/provider notifications are not enabled without a provider; approvals explicitly remain manual.
+10. Files: app.py company routes; saas.py platform policy/services; admin_app.py separate owner server; mongo_store.py tenant repository; templates/admin and company SaaS templates; scripts/init_saas.py; tests/test_saas.py.
+
+This is the admin-panel implementation, not a claim that all earlier deployment/email/worker requirements are complete.
