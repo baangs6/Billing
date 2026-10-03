@@ -141,7 +141,7 @@ def create_app(database=None, backend=None):
             for key,value in request.form.items():
                 if key!='items' and len(value)>(2500 if key in ('terms','notes','description') else 300):
                     raise ValueError('A form field is too long. Shorten it and try again.')
-        if request.endpoint not in ('home','dashboard','login','register','static') and 'user' not in session:
+        if request.endpoint not in ('home','dashboard','login','register','forgot_password','reset_password','static') and 'user' not in session:
             return redirect(url_for('login'))
 
     @app.after_request
@@ -767,6 +767,8 @@ def create_app(database=None, backend=None):
     for endpoint in ('register','customers','products','inventory','billing','cancel','payments','settings_page','dashboard','invoices','view_invoice','invoice_pdf','reports','subscription_page','company_users','company_roles','proposals','proposal_form','view_proposal','proposal_pdf'):
         app.view_functions[endpoint]=transactional(app.view_functions[endpoint])
 
+    from password_recovery import install_recovery
+    install_recovery(app,backend,owner=False)
     return app
 
 app=create_app()

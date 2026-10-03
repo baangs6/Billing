@@ -82,7 +82,7 @@ Use an HTTPS reverse proxy, `HTTPS=1`, a deployment-secret `SECRET_KEY`, operati
 
 The current app includes business-isolated billing workspaces and the owner/company SaaS controls above. `SAAS_MONGODB_ARCHITECTURE.md` describes this implementation; `SAAS_ARCHITECTURE.md` retains the earlier PostgreSQL proposal for historical context.
 
-Automated email verification/delivery, gateway checkout, automatic renewals/expiry notifications, company password recovery, credit notes/refunds, GST submissions, IRNs/e-way bills and purchase workflows are not implemented. Owner recovery codes recover the second factor, not a forgotten password. Company approval and payment verification are manual. Separate least-privilege Atlas runtime credentials, HTTPS/public deployment, offsite backup and restoration testing remain deployment work.
+Automated email verification, gateway checkout, automatic renewals/expiry notifications, credit notes/refunds, GST submissions, IRNs/e-way bills and purchase workflows are not implemented. Owner recovery codes recover the second factor, not a forgotten password. Company approval and payment verification are manual. Separate least-privilege Atlas runtime credentials, HTTPS/public deployment, offsite backup and restoration testing remain deployment work.
 
 ## Public home page
 
@@ -97,3 +97,9 @@ Proposals use the same server Decimal/paise calculations and tenant scoping as i
 Review & convert to invoice opens the existing billing form for confirmation and editing. Actual invoice saving rechecks subscription, GST, monthly quota, active customer/products, available stock and proposal revision. The proposal links to the resulting invoice only when that transaction commits. A failed finalization leaves the proposal unconverted; retries cannot convert it twice. Declined or expired proposals must be revised before conversion, and converted proposals are locked. Any scope/prices edited during finalization are preserved on the invoice; the original quotation remains unchanged.
 
 Proposal read/create/edit permissions reuse invoice.view / invoice.create / invoice.edit, and proposal PDF downloads require the plan PDF feature. Company Admin and Billing Staff can create proposals; Managers can view them. Draft proposals are not inventory reservations.
+
+## Password recovery
+
+Both company and owner sign-in pages include Forgot password. Configure SMTP_HOST, SMTP_PORT (587), SMTP_FROM, SMTP_USERNAME and SMTP_PASSWORD in Render Environment, plus PUBLIC_BASE_URL on the company service and ADMIN_PUBLIC_BASE_URL on the admin service (their HTTPS origins). SMTP uses STARTTLS with certificate verification. Keep passwords private. Until configured, recovery shows an explicit unavailable message and disables sending; no reset URLs are exposed in pages or logs.
+
+Links expire after 30 minutes, contain a random token stored only as a hash, and can be consumed once. Reset requests return the same message for known and unknown active accounts and are rate limited. Password updates and token consumption are transactional, invalidate existing sessions and outstanding links, and preserve owner MFA. Resetting a password does not activate an inactive account or change company approval/subscription status. This feature needs a working SMTP provider before clients can receive recovery emails.

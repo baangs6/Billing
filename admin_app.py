@@ -74,7 +74,7 @@ def create_admin_app(backend=None):
         if request.method=='POST':
             if not secrets.compare_digest(session['csrf'],request.form.get('csrf','')): abort(400,'Refresh the page before submitting.')
             if any(len(value)>(2500 if key in ('reason','notes') else 300) for key,value in request.form.items()): abort(400,'A field is too long.')
-        if request.endpoint not in ('login','setup','static') and not g.admin: return redirect(url_for('login'))
+        if request.endpoint not in ('login','setup','forgot_password','reset_password','static') and not g.admin: return redirect(url_for('login'))
     @app.after_request
     def headers(response):
         response.headers.update({'Cache-Control':'no-store','X-Frame-Options':'DENY','X-Content-Type-Options':'nosniff','Referrer-Policy':'no-referrer','Content-Security-Policy':"default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'"})
@@ -279,6 +279,8 @@ def create_admin_app(backend=None):
                 platform.audit(g.admin['id'],'platform.settings',None,old,values,ms,*metadata())
             platform.transaction(change); flash('System settings saved.'); return redirect(url_for('settings'))
         return render_template('admin/settings.html',title='System settings',policy=platform.one('platform_settings',{'_id':'policy'}))
+    from password_recovery import install_recovery
+    install_recovery(app,backend,owner=True)
     return app
 
 app=create_admin_app()
