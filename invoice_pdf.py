@@ -32,7 +32,8 @@ def build_invoice_pdf(inv,proposal=False):
     if b['logo']: header=table([[image(b['logo']),business,p(title,right)]],[85,width-210,125])
     else: header=table([[business,p(title,right)]],[width-125,125])
     header.setStyle(TableStyle([('LINEBELOW',(0,0),(-1,-1),1.4,green)])); story.extend([header,Spacer(1,14)])
-    details=f"{inv['number']}\nProposal date: {inv['date']}\nValid through: {inv['valid_until']}\nStatus: {inv['status']}" if proposal else f"{inv['number']}\nInvoice date: {inv['date']}\nInstallation: {s['installation'] or '-'}\nService: {s['service'] or '-'}\nStatus: {inv['status']}"
+    details=f"{inv['number']}\nProposal date: {inv['date']}\nValid through: {inv['valid_until']}\nStatus: {inv['status']}" if proposal else f"{inv['number']}\nInvoice date: {inv['date']}\nInstallation: {s['installation'] or '-'}\nService: {s['service'] or '-'}"
+    if not proposal and inv['status']!='FINAL': details+=f"\nStatus: {inv['status']}"
     parties=table([[p(f"{'PREPARED FOR' if proposal else 'BILL TO'}\n{c['name']}\n{c['data']['address']}\n{c['data']['state']} {c['data']['pin']}\nPhone: {c['data']['phone']}{customer_gstin}"),p(details,right)]],[width*.57,width*.43]); story.extend([parties,Spacer(1,14)])
     if proposal:
         story.extend([p(inv['title'],heading),p(inv.get('description','')),Spacer(1,12),p('Proposal only - not a tax invoice. No stock or payment has been recorded.'),Spacer(1,12)])
