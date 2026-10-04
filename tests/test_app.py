@@ -308,3 +308,56 @@ def test_product_import_rejects_bad_rows_duplicates_and_quota_atomically(workspa
     response=post('/products',{'action':'import','file':(io.BytesIO(b'name,sku,selling_price\nValid,NEW-1,100\n'),'products.csv')})
     assert response.status_code==403
     assert count(backend,'products')==original
+
+
+def test_custom_invoice_sequence_and_settings(workspace):
+    client, post, backend=workspace
+    settings=DEFAULTS|dict(name='Acme Electronics',gstin='33ABCDE1234F1Z5',state='Tamil Nadu',prefix='ABC/{fy}/{seq}',next_invoice_number='100',invoice_number_digits='5',expected_invoice_number='1')
+    assert post('/settings',settings).status_code==302
+    data=payload()
+    assert post('/billing',data).status_code==302
+    assert values(backend,'invoices','number')==['ABC/26-27/00100']
+    assert backend.database.business_settings.find_one({'business_id':1})['data']['next_invoice_number']==101
+    post('/billing',data)
+    post('/billing',payload(id='1',version='1'))
+    post('/invoices/1/cancel',{})
+    assert backend.database.business_settings.find_one({'business_id':1})['data']['next_invoice_number']==101
+    post('/billing',payload())
+    assert values(backend,'invoices','number')==['ABC/26-27/00100','ABC/26-27/00101']
+    post('/settings',settings)
+    assert backend.database.business_settings.find_one({'business_id':1})['data']['next_invoice_number']==102
+    settings.update(expected_invoice_number='102',next_invoice_number='100')
+    post('/settings',settings)
+    original=count(backend,'invoices')
+    post('/billing',payload())
+    assert count(backend,'invoices')==original
+    assert backend.database.business_settings.find_one({'business_id':1})['data']['next_invoice_number']==100
+    settings.update(expected_invoice_number='100',next_invoice_number='200',prefix='CUSTOM-{seq}',invoice_number_digits='1')
+    post('/settings',settings)
+    post('/billing',payload())
+    assert values(backend,'invoices','number')[-1]=='CUSTOM-200'
+
+
+def test_invoice_numbering_invalid_format_and_legacy_continuation(workspace):
+    client, post, backend=workspace
+    post('/billing',payload())
+    backend.database.business_settings.update_one({'business_id':1},{'$unset':{'data.next_invoice_number':'','data.invoice_number_digits':''}})
+    post('/billing',payload())
+    assert values(backend,'invoices','number')==['INV/26-27/001','INV/26-27/002']
+    for format in ('ABC', '{seq.__class__}', '{seq:04d}', '{unknown}/{seq}'):
+        post('/settings',DEFAULTS|dict(name='Acme Electronics',state='Tamil Nadu',prefix=format,next_invoice_number='99'))
+        assert backend.database.business_settings.find_one({'business_id':1})['data']['next_invoice_number']==3
+
+
+def test_concurrent_invoice_numbers_are_unique(workspace):
+    client, post, backend=workspace
+    with client.session_transaction() as session: credentials=dict(session)
+    def send(_):
+        peer=client.application.test_client()
+        with peer.session_transaction() as session: session.update(credentials)
+        return peer.post('/billing',data=dict(payload(),csrf=credentials['csrf']))
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        responses=list(executor.map(send,range(2)))
+    assert all(response.status_code==302 for response in responses)
+    assert values(backend,'invoices','number')==['INV/26-27/001','INV/26-27/002']
+    assert backend.database.business_settings.find_one({'business_id':1})['data']['next_invoice_number']==3

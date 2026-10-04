@@ -107,3 +107,7 @@ Links expire after 30 minutes, contain a random token stored only as a hash, and
 ### Product import
 
 Products supports bulk import from UTF-8 CSV and Excel (.xlsx). Download the template in Products and replace its example row. Required headers are `name`, `sku`, and `selling_price`; optional columns are `category`, `description`, `hsn`, `unit`, `purchase_price`, `mrp`, `gst`, `min_stock`, and `stock`. Prices are rupees and stock is the opening quantity. Imports add new products only, reject duplicate SKUs, require product management permission, and enforce plan limits. Up to 500 products and 5 MB per file; formulas are rejected. The entire import commits atomically, including opening stock and audit records.
+
+### Invoice numbering
+
+In Settings, choose an invoice number format using `{seq}` and optional `{fy}`, the next invoice number (1–999999999), and digit padding (1–9). For example `ABC/{fy}/{seq}` with next number 100 and 3 digits issues `ABC/26-27/100`, then `ABC/26-27/101`. Each new invoice advances the company sequence in the same transaction as stock and payment records. Edits, cancellations and failed saves do not consume a number. Numbers continue across financial years until changed in Settings; existing invoices are never renumbered. Duplicate numbers are rejected, and settings pages opened before another invoice was issued must be refreshed before saving.

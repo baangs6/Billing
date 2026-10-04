@@ -87,7 +87,10 @@ def create_app(database=None, backend=None):
 
     def settings():
         r = db().one('business_settings')
-        return DEFAULTS | (r['data'] if r else {})
+        values=DEFAULTS | (r['data'] if r else {})
+        values.setdefault('next_invoice_number',db().count('invoices')+1)
+        values.setdefault('invoice_number_digits',3)
+        return values
 
     def owned(table, ident):
         row = db().one(table,{'id':ident})
@@ -542,8 +545,11 @@ def create_app(database=None, backend=None):
                     db().delete('invoice_items',{'invoice_id':old['id']}); iid=old['id']
                 else:
                     d=date.fromisoformat(day); year=d.year if d.month>=4 else d.year-1; fy=f'{year%100:02d}-{(year+1)%100:02d}'
-                    seq=db().count('invoices')+1
-                    number=business['prefix'].format(fy=fy,seq=f'{seq:03d}')
+                    seq=int(business['next_invoice_number'])
+                    if seq>999999999: raise ValueError('Invoice sequence limit reached. Set a new sequence in Settings.')
+                    number=business['prefix'].format(fy=fy,seq=str(seq).zfill(int(business['invoice_number_digits'])))
+                    if db().one('invoices',{'number':number}): raise ValueError('This invoice number already exists. Change the next invoice number or format in Settings.')
+                    db().update('business_settings',{}, {'data.next_invoice_number':seq+1})
                     iid=db().insert('invoices',dict(values,number=number,status='FINAL',version=1))
                     db().update('invoices',{'id':iid},{'first_finalized_month':local_month()})
                     db().insert('invoice_submissions',dict(token=submission,invoice_id=iid))
@@ -617,9 +623,21 @@ def create_app(database=None, backend=None):
             for k in DEFAULTS:
                 if k not in ('logo','signature','negative_stock'): data[k]=request.form.get(k,'').strip()
             if not data['name'] or not data['state']: raise ValueError('Business name and state are required.')
-            if '{seq}' not in data['prefix']: raise ValueError('Numbering format must contain {seq}. Optional: {fy}.')
-            try: data['prefix'].format(seq='001',fy='26-27')
-            except (KeyError,ValueError): raise ValueError('Use only {seq} and {fy} in the numbering format.')
+            from string import Formatter
+            try:
+                fields=list(Formatter().parse(data['prefix']))
+                if not any(field=='seq' for _,field,_,_ in fields) or any(field not in (None,'seq','fy') or spec or conversion for _,field,spec,conversion in fields): raise ValueError()
+                data['prefix'].format(seq='001',fy='26-27')
+            except (KeyError,ValueError,IndexError): raise ValueError('Invoice format must contain {seq}; only {seq} and optional {fy} are supported.')
+            current=settings()
+            expected=request.form.get('expected_invoice_number')
+            if expected is not None and expected!=str(current['next_invoice_number']): raise ValueError('Invoice numbering changed while this page was open. Refresh Settings before saving.')
+            try:
+                next_number=int(request.form.get('next_invoice_number',current['next_invoice_number']))
+                digits=int(request.form.get('invoice_number_digits',current['invoice_number_digits']))
+                if not 1<=next_number<=999999999 or not 1<=digits<=9: raise ValueError()
+            except (ValueError,TypeError): raise ValueError('Next invoice number must be 1 to 999999999; number digits must be 1 to 9.')
+            data.update(next_invoice_number=next_number,invoice_number_digits=digits)
             try:
                 rates=[Decimal(r) for r in data['gst_rates'].split(',')]
                 if not rates or any(not r.is_finite() or r<0 or r>100 for r in rates): raise ValueError()
