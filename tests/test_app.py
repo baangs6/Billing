@@ -193,3 +193,26 @@ def test_child_tenant_filters(workspace):
         assert other.find(collection)==[]
     assert other.one('invoice_items',{'invoice_id':1}) is None
     with pytest.raises(PermissionError): backend.scope().find('invoices')
+
+
+def test_inline_billing_customer(workspace):
+    client,post,backend=workspace
+    response=post('/billing/customer',dict(name='Popup customer',phone='9876543210',state='Kerala',email='popup@example.com',address='Inline address'))
+    assert response.status_code==201
+    customer=response.json['customer']
+    row=backend.database.customers.find_one({'id':customer['id']})
+    assert row['business_id']==1 and row['data']['state']=='Kerala'
+    assert backend.database.audit_events.find_one({'business_id':1,'entity':'customer','entity_id':customer['id']})
+    assert post('/billing/customer',dict(name='')).status_code==400
+    assert client.post('/billing/customer',data=dict(name='No CSRF')).status_code==400
+    assert client.application.test_client().post('/billing/customer',data=dict(name='Anonymous')).status_code in (302,400)
+    assert b'customer-search' in client.get('/billing').data
+    assert backend.database.invoices.count_documents({})==0
+
+def test_inline_customer_respects_permissions(workspace):
+    client,post,backend=workspace
+    user=backend.database.users.find_one({'email':'owner@example.com'})
+    role=backend.database.roles.find_one({'business_id':1,'id':user['role_id']})
+    backend.database.roles.update_one({'id':role['id'],'business_id':1},{'$pull':{'permissions':'customer.manage'}})
+    assert post('/billing/customer',dict(name='Forbidden customer')).status_code==403
+    assert backend.database.customers.count_documents({'name':'Forbidden customer'})==0

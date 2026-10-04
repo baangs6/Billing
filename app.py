@@ -291,6 +291,15 @@ def create_app(database=None, backend=None):
         for row in rows: row['name']=names.get(row['product_id'],'Archived product')
         return rows
 
+    @app.post('/billing/customer')
+    def billing_customer():
+        name=request.form.get('name','').strip()
+        if not name: return {'error':'Customer name is required.'},400
+        data={k:request.form.get(k,'').strip() for k in ('phone','email','address','gstin','state','pin','notes')}
+        ident=db().insert('customers',dict(name=name,data=data,archived=0))
+        audit('save','customer',ident)
+        return {'customer':dict(id=ident,name=name,data=data)},201
+
     @app.route('/customers',methods=['GET','POST'])
     def customers():
         if request.method=='POST':
@@ -661,6 +670,7 @@ def create_app(database=None, backend=None):
             return
         if policy['state']!='ACTIVE': return redirect(url_for('subscription_page'))
         permission=required_permission(endpoint)
+        if endpoint=='billing_customer': permission='customer.manage'
         if request.method=='POST':
             permission={'customers':'customer.manage','products':'product.manage','inventory':'inventory.adjust','payments':'payment.record'}.get(endpoint,permission)
         if endpoint=='billing' and (request.form.get('id') or request.args.get('edit')): permission='invoice.edit'
@@ -764,7 +774,7 @@ def create_app(database=None, backend=None):
                 raise
         return guarded
 
-    for endpoint in ('register','customers','products','inventory','billing','cancel','payments','settings_page','dashboard','invoices','view_invoice','invoice_pdf','reports','subscription_page','company_users','company_roles','proposals','proposal_form','view_proposal','proposal_pdf'):
+    for endpoint in ('register','billing_customer','customers','products','inventory','billing','cancel','payments','settings_page','dashboard','invoices','view_invoice','invoice_pdf','reports','subscription_page','company_users','company_roles','proposals','proposal_form','view_proposal','proposal_pdf'):
         app.view_functions[endpoint]=transactional(app.view_functions[endpoint])
 
     from password_recovery import install_recovery
