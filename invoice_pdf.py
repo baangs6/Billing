@@ -24,16 +24,18 @@ def build_invoice_pdf(inv,proposal=False):
         if header: commands += [('BACKGROUND',(0,0),(-1,0),colors.HexColor('#edf4ef')),('LINEBELOW',(0,0),(-1,0),.6,line),('LINEBELOW',(0,1),(-1,-1),.3,line)]
         t.setStyle(TableStyle(commands)); return t
     s=inv['snapshot']; b=s['business']; c=s['customer']; fmt=lambda n:f'INR {n/100:,.2f}'; story=[]
+    gst=inv['type']=='GST'
+    seller_gstin=f"\nGSTIN: {b['gstin'] or '-'}" if gst else ''
+    customer_gstin=f"\nGSTIN: {c['data']['gstin'] or '-'}" if gst else ''
     title='PROPOSAL / QUOTATION' if proposal else 'TAX INVOICE' if inv['type']=='GST' else 'BILL OF SUPPLY'
-    business=[p(b['name'],heading),Spacer(1,5),p(f"{b['address']}\n{b['state']} {b['pin']}\nPhone: {b['phone']} | {b['email']}\nGSTIN: {b['gstin'] or '-'}")]
+    business=[p(b['name'],heading),Spacer(1,5),p(f"{b['address']}\n{b['state']} {b['pin']}\nPhone: {b['phone']} | {b['email']}{seller_gstin}")]
     if b['logo']: header=table([[image(b['logo']),business,p(title,right)]],[85,width-210,125])
     else: header=table([[business,p(title,right)]],[width-125,125])
     header.setStyle(TableStyle([('LINEBELOW',(0,0),(-1,-1),1.4,green)])); story.extend([header,Spacer(1,14)])
     details=f"{inv['number']}\nProposal date: {inv['date']}\nValid through: {inv['valid_until']}\nStatus: {inv['status']}" if proposal else f"{inv['number']}\nInvoice date: {inv['date']}\nInstallation: {s['installation'] or '-'}\nService: {s['service'] or '-'}\nStatus: {inv['status']}"
-    parties=table([[p(f"{'PREPARED FOR' if proposal else 'BILL TO'}\n{c['name']}\n{c['data']['address']}\n{c['data']['state']} {c['data']['pin']}\nPhone: {c['data']['phone']}\nGSTIN: {c['data']['gstin'] or '-'}"),p(details,right)]],[width*.57,width*.43]); story.extend([parties,Spacer(1,14)])
+    parties=table([[p(f"{'PREPARED FOR' if proposal else 'BILL TO'}\n{c['name']}\n{c['data']['address']}\n{c['data']['state']} {c['data']['pin']}\nPhone: {c['data']['phone']}{customer_gstin}"),p(details,right)]],[width*.57,width*.43]); story.extend([parties,Spacer(1,14)])
     if proposal:
         story.extend([p(inv['title'],heading),p(inv.get('description','')),Spacer(1,12),p('Proposal only - not a tax invoice. No stock or payment has been recorded.'),Spacer(1,12)])
-    gst=inv['type']=='GST'
     headings=['#','Item / HSN' if gst else 'Item','Qty','Rate','MRP','Discount']+(['GST / Tax'] if gst else [])+['Amount']
     widths=[21,135,38,57,57,50]+([62] if gst else [])+[width-(21+135+38+57+57+50+(62 if gst else 0))]
     data=[[p(v) for v in headings]]

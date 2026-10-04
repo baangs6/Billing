@@ -216,3 +216,27 @@ def test_inline_customer_respects_permissions(workspace):
     backend.database.roles.update_one({'id':role['id'],'business_id':1},{'$pull':{'permissions':'customer.manage'}})
     assert post('/billing/customer',dict(name='Forbidden customer')).status_code==403
     assert backend.database.customers.count_documents({'name':'Forbidden customer'})==0
+
+
+@pytest.mark.parametrize('invoice_type', ['GST', 'NON-GST'])
+def test_invoice_gstin_visibility(workspace, invoice_type):
+    import pymupdf
+    client, post, backend = workspace
+    customer_gstin = '33XYZAB9876C1Z2'
+    backend.database.customers.update_one({'id': 1}, {'$set': {'data.gstin': customer_gstin}})
+    data = payload()
+    data['type'] = invoice_type
+    assert post('/billing', data).status_code == 302
+    html = client.get('/invoices/1').get_data(as_text=True)
+    response = client.get('/invoices/1/pdf')
+    assert response.status_code == 200
+    with pymupdf.open(stream=response.data, filetype='pdf') as document:
+        pdf_text = ''.join(page.get_text() for page in document)
+    for rendered in (html, pdf_text):
+        assert 'Acme Electronics' in rendered and 'Anita Stores' in rendered
+        assert 'Tamil Nadu' in rendered
+        for value in ('GSTIN:', '33ABCDE1234F1Z5', customer_gstin):
+            assert (value in rendered) == (invoice_type == 'GST')
+    snapshot = backend.database.invoices.find_one({'id': 1})['snapshot']
+    assert snapshot['business']['gstin'] == '33ABCDE1234F1Z5'
+    assert snapshot['customer']['data']['gstin'] == customer_gstin
