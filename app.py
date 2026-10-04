@@ -328,8 +328,52 @@ def create_app(database=None, backend=None):
         if profile: profile['data']=dict(profile['data'])
         return render_template('customers.html',title='Customers',rows=rows,edit=edit,history=history,profile=profile)
 
+    def import_products():
+        from product_import import read_products
+        records=read_products(request.files.get('file'))
+        existing={row['sku'].casefold() for row in db().find('products')}
+        prepared=[]
+        rates=[Decimal(rate) for rate in settings()['gst_rates'].split(',')]
+        for number,row in records:
+            try:
+                name=row.get('name',''); sku=row.get('sku','')
+                if not name or not sku: raise ValueError('Product name and SKU are required.')
+                if sku.casefold() in existing: raise ValueError('SKU already exists in this company or appears twice in the file.')
+                existing.add(sku.casefold())
+                gst=Decimal(row.get('gst') or '0')
+                if not gst.is_finite() or gst not in rates: raise ValueError('Choose a configured GST rate.')
+                stock=quantity(row.get('stock') or '0',allow_zero=True)
+                if stock and not g.access['features'].get('inventory'): raise ValueError('Opening stock is disabled by your plan.')
+                if not row.get('selling_price'): raise ValueError('Selling price is required.')
+                data={key:row.get(key,'') for key in ('category','description','hsn','unit')}
+                data['unit']=data['unit'] or 'PCS'
+                data.update(gst=str(gst),min_stock=quantity(row.get('min_stock') or '0',allow_zero=True))
+                values=dict(name=name,sku=sku,data=data,active=1,selling_price=money(row['selling_price']),purchase_price=money(row.get('purchase_price') or '0'),mrp=money(row.get('mrp') or '0'))
+                prepared.append((values,stock))
+            except (ValueError,InvalidOperation) as error:
+                raise ValueError(f'Row {number}: {error}') from error
+        maximum=g.access['limits'].get('products')
+        if maximum is not None and db().count('products',{'active':1})+len(prepared)>maximum:
+            raise ValueError(f'This import exceeds your plan limit of {maximum} active products.')
+        for values,stock in prepared:
+            category=db().one('categories',{'name':values['data']['category']})
+            values['category_id']=category['id'] if category else db().insert('categories',{'name':values['data']['category']})
+            ident=db().insert('products',values)
+            db().insert('inventory',dict(product_id=ident,quantity=stock))
+            db().insert('stock_movements',dict(product_id=ident,invoice_id=None,quantity=stock,reason='Opening stock (import)'))
+            audit('import','product',ident)
+        flash(f'Imported {len(prepared)} products successfully.')
+        return redirect(url_for('products'))
+
     @app.route('/products',methods=['GET','POST'])
     def products():
+        if request.method=='GET' and request.args.get('template'):
+            from product_import import COLUMNS
+            output=io.StringIO(); writer=csv.writer(output); writer.writerow(COLUMNS)
+            writer.writerow(['Sample product','SAMPLE-001','General','Sample description','9405','PCS','60','120','100','0','5','10'])
+            return Response('\ufeff'+output.getvalue(),mimetype='text/csv',headers={'Content-Disposition':'attachment; filename=products-template.csv'})
+        if request.method=='POST' and request.form.get('action')=='import':
+            return import_products()
         if request.method=='POST':
             ident=request.form.get('id')
             if ident: owned('products',ident)

@@ -261,3 +261,50 @@ def test_invoice_notes_save_edit_duplicate_and_exports(workspace):
     backend.database.invoices.update_one({'id': 1}, {'$unset': {'snapshot.notes': ''}})
     for url in ('/invoices/1', '/billing?edit=1', '/invoices/1/pdf'):
         assert client.get(url).status_code == 200
+
+
+@pytest.mark.parametrize('file_type', ['csv', 'xlsx'])
+def test_product_import_formats_and_opening_stock(workspace, file_type):
+    import io
+    from openpyxl import Workbook
+    client, post, backend = workspace
+    rows=[['name','sku','selling_price','stock','gst'],['Imported lamp','IMPORT-01','123.45','2.125','18']]
+    if file_type == 'xlsx':
+        workbook=Workbook()
+        for row in rows: workbook.active.append(row)
+        stream=io.BytesIO(); workbook.save(stream); stream.seek(0)
+    else:
+        stream=io.BytesIO(b'name,sku,selling_price,stock,gst\nImported lamp,IMPORT-01,123.45,2.125,18\n')
+    assert post('/products', {'action':'import','file':(stream,'products.'+file_type)}).status_code == 302
+    product=backend.database.products.find_one({'sku':'IMPORT-01'})
+    assert product['selling_price']==12345 and product['business_id']==1
+    assert backend.database.inventory.find_one({'product_id':product['id']})['quantity']==2125
+    assert backend.database.stock_movements.find_one({'product_id':product['id']})['reason']=='Opening stock (import)'
+    assert client.get('/products?template=1').status_code==200
+
+
+def test_product_import_rejects_bad_rows_duplicates_and_quota_atomically(workspace):
+    import io
+    client, post, backend=workspace
+    original=count(backend,'products')
+    files=[
+        b'name,sku,selling_price\nValid,NEW-1,100\nInvalid,NEW-2,-1\n',
+        b'name,sku,selling_price\nDuplicate,LAMP-01,100\n',
+        b'name,sku,selling_price\nOne,NEW-1,100\nTwo,new-1,100\n',
+        b'name,sku,selling_price\nFormula,NEW-1,=1+2\n',
+    ]
+    for content in files:
+        response=post('/products',{'action':'import','file':(io.BytesIO(content),'products.csv')})
+        assert response.status_code in (302,400,422)
+        assert count(backend,'products')==original
+    subscription=backend.database.subscriptions.find_one({'business_id':1,'current':True})
+    backend.database.subscriptions.update_one({'_id':subscription['_id']},{'$set':{'plan.limits.products':1}})
+    post('/products',{'action':'import','file':(io.BytesIO(b'name,sku,selling_price\nValid,NEW-1,100\n'),'products.csv')})
+    assert count(backend,'products')==original
+    assert client.post('/products',data={'action':'import','file':(io.BytesIO(files[0]),'products.csv')}).status_code==400
+
+    role=backend.database.roles.find_one({'business_id':1,'name':'COMPANY_ADMIN'})
+    backend.database.roles.update_one({'_id':role['_id']},{'$pull':{'permissions':'product.manage'}})
+    response=post('/products',{'action':'import','file':(io.BytesIO(b'name,sku,selling_price\nValid,NEW-1,100\n'),'products.csv')})
+    assert response.status_code==403
+    assert count(backend,'products')==original
