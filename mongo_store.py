@@ -5,10 +5,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 from bson.int64 import Int64
 from pymongo import MongoClient, ReturnDocument, ASCENDING
+from pymongo.errors import CollectionInvalid
 from pymongo.read_concern import ReadConcern
 from pymongo.write_concern import WriteConcern
 
-TENANT_COLLECTIONS = {'users','business_settings','customers','categories','products','inventory','stock_movements','invoices','invoice_items','payments','audit_events','invoice_submissions','roles','subscriptions','renewal_requests','proposals'}
+TENANT_COLLECTIONS = {'users','business_settings','customers','categories','products','inventory','stock_movements','invoices','invoice_items','payments','audit_events','invoice_submissions','roles','subscriptions','renewal_requests','proposals','finance_entries'}
 COLLECTIONS = TENANT_COLLECTIONS | {'businesses'}
 ID_FIELDS = {'id','business_id','customer_id','product_id','invoice_id','category_id','user_id','entity_id'}
 MONEY_FIELDS = {'selling_price','purchase_price','mrp','rate','subtotal','discount','taxable','cgst','sgst','igst','total','amount'}
@@ -56,6 +57,23 @@ class MongoBackend:
     def ping(self):
         self.client.admin.command('ping')
 
+    def ensure_finance_storage(self):
+        """Add the finance schema on deployment without rewriting tenant records."""
+        schema={'bsonType':'object','required':['id','business_id','date','kind','category','title','amount','account','method','status','version','submission'],'properties':{
+            'id':{'bsonType':['int','long']},'business_id':{'bsonType':['int','long']},
+            'amount':{'bsonType':['int','long'],'minimum':0},
+            'kind':{'enum':['INCOME','EXPENSE','OPENING']},'status':{'enum':['ACTIVE','VOID']},'account':{'enum':['Cash','Bank','Other']}}}
+        try: self.database.create_collection('finance_entries',validator={'$jsonSchema':schema})
+        except CollectionInvalid: pass
+        self.database.command('collMod','finance_entries',validator={'$jsonSchema':schema},validationLevel='strict',validationAction='error')
+        self.database.finance_entries.create_index('id',unique=True)
+        self.database.finance_entries.create_index('business_id')
+        self.database.finance_entries.create_index([('business_id',1),('submission',1)],unique=True)
+        self.database.finance_entries.create_index([('business_id',1),('date',-1)])
+        self.database.finance_entries.create_index([('business_id',1),('account',1)],unique=True,partialFilterExpression={'kind':'OPENING','status':'ACTIVE'},name='one_active_opening_balance_per_account')
+        maximum=self.database.finance_entries.find_one(sort=[('id',-1)],projection={'id':1})
+        self.database.counters.update_one({'_id':'finance_entries'},{'$max':{'value':Int64(maximum['id'] if maximum else 0)}},upsert=True)
+
     def initialize(self):
         """Run at installation/migration, never during each web request."""
         required={
@@ -72,6 +90,7 @@ class MongoBackend:
             'subscriptions':['id','business_id','status','plan','start_at'],
             'renewal_requests':['id','business_id','status','plan_id','cycle'],
             'proposals':['id','business_id','customer_id','number','date','valid_until','title','type','status','version','total','snapshot','items','submission'],
+            'finance_entries':['id','business_id','date','kind','category','title','amount','account','method','status','version','submission'],
         }
         existing=set(self.database.list_collection_names())
         for name,fields in required.items():
@@ -84,6 +103,9 @@ class MongoBackend:
                 properties.update(snapshot={'bsonType':'object'},type={'enum':['GST','NON-GST']},status={'enum':['FINAL','CANCELLED']})
             if name=='proposals':
                 properties.update(snapshot={'bsonType':'object'},items={'bsonType':'array'},type={'enum':['GST','NON-GST']},status={'enum':['DRAFT','SENT','ACCEPTED','DECLINED','CONVERTED']})
+            if name=='finance_entries':
+                properties.update(kind={'enum':['INCOME','EXPENSE','OPENING']},status={'enum':['ACTIVE','VOID']},account={'enum':['Cash','Bank','Other']})
+                properties['amount']['minimum']=0
             validator={'$jsonSchema':{'bsonType':'object','required':fields,'properties':properties}}
             if name not in existing: self.database.create_collection(name,validator=validator)
             else: self.database.command('collMod',name,validator=validator,validationLevel='strict',validationAction='error')
@@ -102,6 +124,9 @@ class MongoBackend:
         self.database.stock_movements.create_index([('business_id',1),('product_id',1),('id',-1)])
         self.database.proposals.create_index([('business_id',1),('number',1)],unique=True)
         self.database.proposals.create_index([('business_id',1),('submission',1)],unique=True)
+        self.database.finance_entries.create_index([('business_id',1),('submission',1)],unique=True)
+        self.database.finance_entries.create_index([('business_id',1),('date',-1)])
+        self.database.finance_entries.create_index([('business_id',1),('account',1)],unique=True,partialFilterExpression={'kind':'OPENING','status':'ACTIVE'},name='one_active_opening_balance_per_account')
         self.database.login_attempts.create_index('expires_at',expireAfterSeconds=0)
         for name in required:
             if 'id' in required[name]:
@@ -149,8 +174,8 @@ class MongoStore:
     def one(self,name,query=None):
         return clean(self.backend.database[name].find_one(self._query(name,query),session=self.mongo_session))
 
-    def find(self,name,query=None,sort=None,limit=0):
-        cursor=self.backend.database[name].find(self._query(name,query),session=self.mongo_session)
+    def find(self,name,query=None,sort=None,limit=0,projection=None):
+        cursor=self.backend.database[name].find(self._query(name,query),projection=projection,session=self.mongo_session)
         if sort: cursor=cursor.sort(sort)
         if limit: cursor=cursor.limit(limit)
         return [clean(r) for r in cursor]

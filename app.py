@@ -152,13 +152,13 @@ def create_app(database=None, backend=None):
         response.headers['X-Content-Type-Options']='nosniff'
         response.headers['X-Frame-Options']='DENY'
         response.headers['Referrer-Policy']='same-origin'
-        response.headers['Content-Security-Policy']="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'"
+        if request.endpoint!='finance_receipt': response.headers['Content-Security-Policy']="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'"
         response.headers['Cache-Control']='no-store'
         return response
 
     @app.context_processor
     def context():
-        nav=[('dashboard','Dashboard','◫'),('billing','Billing','＋'),('proposals','Proposals','▧'),('invoices','Invoices','▤'),('customers','Customers','♧'),('products','Products','◇'),('inventory','Inventory','▦'),('payments','Payments','↗'),('reports','Reports','▥'),('settings_page','Settings','⚙'),('company_users','Users','♙'),('company_roles','Roles','◇'),('subscription_page','Subscription','▤')]
+        nav=[('dashboard','Dashboard','◫'),('billing','Billing','＋'),('proposals','Proposals','▧'),('invoices','Invoices','▤'),('customers','Customers','♧'),('products','Products','◇'),('inventory','Inventory','▦'),('payments','Payments','↗'),('finance_page','Finance','₹'),('reports','Reports','▥'),('settings_page','Settings','⚙'),('company_users','Users','♙'),('company_roles','Roles','◇'),('subscription_page','Subscription','▤')]
         policy=g.get('access')
         if policy:
             nav=[entry for entry in nav if entry[0]=='subscription_page' or (policy['state']=='ACTIVE' and required_permission(entry[0]) in policy['permissions'] and (entry[0] not in ('inventory','reports','company_users','company_roles') or policy['features'].get({'inventory':'inventory','reports':'reports','company_users':'multiple_users','company_roles':'multiple_users'}[entry[0]],False)))]
@@ -748,7 +748,7 @@ def create_app(database=None, backend=None):
         return 'Database temporarily unavailable. Please try again shortly.',503
 
     def required_permission(endpoint):
-        return {'proposals':'invoice.view','proposal_form':'invoice.create','view_proposal':'invoice.view','proposal_pdf':'invoice.view','dashboard':'dashboard.view','billing':'invoice.create','invoices':'invoice.view','view_invoice':'invoice.view','invoice_pdf':'invoice.view','cancel':'invoice.cancel','customers':'customer.view','products':'product.view','inventory':'inventory.view','payments':'payment.view','reports':'report.view','settings_page':'settings.manage','company_users':'user.manage','company_roles':'role.manage'}.get(endpoint)
+        return {'finance_page':'finance.view','finance_receipt':'finance.view','proposals':'invoice.view','proposal_form':'invoice.create','view_proposal':'invoice.view','proposal_pdf':'invoice.view','dashboard':'dashboard.view','billing':'invoice.create','invoices':'invoice.view','view_invoice':'invoice.view','invoice_pdf':'invoice.view','cancel':'invoice.cancel','customers':'customer.view','products':'product.view','inventory':'inventory.view','payments':'payment.view','reports':'report.view','settings_page':'settings.manage','company_users':'user.manage','company_roles':'role.manage'}.get(endpoint)
 
     def authorize(endpoint):
         policy=access(db(),session['user']); g.access=policy
@@ -762,6 +762,7 @@ def create_app(database=None, backend=None):
         permission=required_permission(endpoint)
         if endpoint=='billing_customer': permission='customer.manage'
         if endpoint=='billing_product': permission='product.manage'
+        if endpoint=='finance_page' and request.method=='POST': permission='finance.manage'
         if request.method=='POST':
             permission={'customers':'customer.manage','products':'product.manage','inventory':'inventory.adjust','payments':'payment.record'}.get(endpoint,permission)
         if endpoint=='billing' and (request.form.get('id') or request.args.get('edit')): permission='invoice.edit'
@@ -865,7 +866,11 @@ def create_app(database=None, backend=None):
                 raise
         return guarded
 
-    for endpoint in ('register','billing_customer','billing_product','customers','products','inventory','billing','cancel','payments','settings_page','dashboard','invoices','view_invoice','invoice_pdf','reports','subscription_page','company_users','company_roles','proposals','proposal_form','view_proposal','proposal_pdf'):
+    backend.ensure_finance_storage()
+    from finance import install_finance
+    install_finance(app,db,owned,audit,money,today,payment_rows,pdf_document)
+
+    for endpoint in ('finance_page','finance_receipt','register','billing_customer','billing_product','customers','products','inventory','billing','cancel','payments','settings_page','dashboard','invoices','view_invoice','invoice_pdf','reports','subscription_page','company_users','company_roles','proposals','proposal_form','view_proposal','proposal_pdf'):
         app.view_functions[endpoint]=transactional(app.view_functions[endpoint])
 
     from password_recovery import install_recovery
