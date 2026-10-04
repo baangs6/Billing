@@ -487,7 +487,7 @@ def create_app(database=None, backend=None):
                 if totals['total']>9_000_000_000_000_000: raise ValueError('Invoice total exceeds the supported financial limit.')
                 received=money(request.form.get('received','0')) if not old else old['received']
                 if received>totals['total']: raise ValueError('Received amount cannot exceed invoice total. Resolve existing payments before reducing the invoice.')
-                snapshot=dict(business=business,customer=customer,terms=request.form.get('terms',''),installation=request.form.get('installation',''),service=request.form.get('service',''))
+                snapshot=dict(business=business,customer=customer,terms=request.form.get('terms',''),notes=request.form.get('notes','').strip(),installation=request.form.get('installation',''),service=request.form.get('service',''))
                 for k in ('installation','service'):
                     if snapshot[k]: date.fromisoformat(snapshot[k])
                 values=dict(customer_id=customer['id'],date=day,type=kind,snapshot=snapshot,**totals)

@@ -242,3 +242,22 @@ def test_invoice_gstin_visibility(workspace, invoice_type):
     snapshot = backend.database.invoices.find_one({'id': 1})['snapshot']
     assert snapshot['business']['gstin'] == '33ABCDE1234F1Z5'
     assert snapshot['customer']['data']['gstin'] == customer_gstin
+
+
+def test_invoice_notes_save_edit_duplicate_and_exports(workspace):
+    import pymupdf
+    from html import escape
+    client, post, backend = workspace
+    notes = 'Deliver after 6 PM.\nCall before arrival <please> & confirm.'
+    assert post('/billing', payload(notes=notes)).status_code == 302
+    assert backend.database.invoices.find_one({'id': 1})['snapshot']['notes'] == notes
+    for url in ('/invoices/1', '/billing?edit=1', '/billing?duplicate=1'):
+        assert escape(notes) in client.get(url).get_data(as_text=True)
+    with pymupdf.open(stream=client.get('/invoices/1/pdf').data, filetype='pdf') as document:
+        text = ''.join(page.get_text() for page in document)
+        assert 'Deliver after 6 PM.' in text and '<please> & confirm.' in text
+    assert post('/billing', payload(id='1', version='1', notes='Updated delivery instructions')).status_code == 302
+    assert backend.database.invoices.find_one({'id': 1})['snapshot']['notes'] == 'Updated delivery instructions'
+    backend.database.invoices.update_one({'id': 1}, {'$unset': {'snapshot.notes': ''}})
+    for url in ('/invoices/1', '/billing?edit=1', '/invoices/1/pdf'):
+        assert client.get(url).status_code == 200

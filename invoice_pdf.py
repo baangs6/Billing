@@ -51,6 +51,8 @@ def build_invoice_pdf(inv,proposal=False):
         totals.append([p(label),p(fmt(inv[key]),right)])
     total_table=table(totals,[145,120]); total_table.hAlign='RIGHT'; total_table.setStyle(TableStyle([('TOPPADDING',(0,0),(-1,-1),5),('BOTTOMPADDING',(0,0),(-1,-1),5),('LINEABOVE',(0,-1 if proposal else -3),(-1,-1 if proposal else -3),.6,line),('BACKGROUND',(0,-1),(-1,-1),colors.HexColor('#edf4ef'))])); story.append(KeepTogether([total_table,Spacer(1,20)]))
     notes=[p('Terms & conditions'),Spacer(1,5),p(s['terms']),Spacer(1,10),p(f"Bank: {b['bank'] or '-'}\nUPI: {b['upi'] or '-'}")]
+    if s.get('notes'):
+        notes=[p('Notes'),Spacer(1,5),p(s['notes']),Spacer(1,10)]+notes
     signature=[]
     if b['signature']:
         img=image(b['signature'],130,60); img.hAlign='RIGHT'; signature.extend([img,Spacer(1,8)])
