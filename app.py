@@ -170,11 +170,15 @@ def create_app(database=None, backend=None):
 
     @app.errorhandler(ValueError)
     def invalid(error):
-        db().rollback(); flash(str(error),'error')
+        db().rollback();
+        if request.endpoint=='billing_product': return {'error':str(error)},400
+        flash(str(error),'error')
         return redirect(request.referrer if request.referrer and request.referrer.startswith(request.host_url) else url_for('dashboard'))
 
     @app.errorhandler(DuplicateKeyError)
     def conflict(error):
+        if request.endpoint=='billing_product':
+            db().rollback(); return {'error':'This SKU already exists. Use a unique product code.'},409
         if request.endpoint=='register':
             flash('An account with this email already exists. Use the Sign in link below.','error')
             return render_template('auth.html',register=True),409
@@ -302,6 +306,30 @@ def create_app(database=None, backend=None):
         ident=db().insert('customers',dict(name=name,data=data,archived=0))
         audit('save','customer',ident)
         return {'customer':dict(id=ident,name=name,data=data)},201
+
+    @app.post('/billing/product')
+    def billing_product():
+        name=request.form.get('name','').strip(); sku=request.form.get('sku','').strip(); category_name=request.form.get('category','').strip()
+        if not name or not sku or not category_name: raise ValueError('Product name, SKU and category are required.')
+        if any(row['sku'].casefold()==sku.casefold() for row in db().find('products')): raise ValueError('This SKU already exists. Use a unique product code.')
+        try: gst=Decimal(request.form.get('gst') or '0')
+        except InvalidOperation: raise ValueError('Choose a configured GST rate.')
+        if not gst.is_finite() or gst not in [Decimal(rate) for rate in settings()['gst_rates'].split(',')]: raise ValueError('Choose a configured GST rate.')
+        data={key:request.form.get(key,'').strip() for key in ('category','description','hsn','unit')}
+        data['unit']=data['unit'] or 'PCS'
+        data.update(gst=str(gst),min_stock=quantity(request.form.get('min_stock') or '0',allow_zero=True))
+        stock=quantity(request.form.get('stock') or '0',allow_zero=True)
+        if stock and not g.access['features'].get('inventory'): raise ValueError('Opening stock is disabled by your plan.')
+        quota(db(),g.access,'products')
+        category=next((row for row in db().find('categories') if row['name'].casefold()==category_name.casefold()),None)
+        data['category']=category['name'] if category else category_name
+        cid=category['id'] if category else db().insert('categories',{'name':category_name})
+        values=dict(name=name,sku=sku,data=data,selling_price=money(request.form.get('selling_price','')),purchase_price=money(request.form.get('purchase_price') or '0'),mrp=money(request.form.get('mrp') or '0'),active=1,category_id=cid)
+        ident=db().insert('products',values)
+        db().insert('inventory',dict(product_id=ident,quantity=stock))
+        db().insert('stock_movements',dict(product_id=ident,invoice_id=None,quantity=stock,reason='Opening stock'))
+        audit('save','product',ident)
+        return {'product':dict(values,id=ident,quantity=stock)},201
 
     @app.route('/customers',methods=['GET','POST'])
     def customers():
@@ -574,7 +602,7 @@ def create_app(database=None, backend=None):
             if source['status']=='DECLINED' or source['valid_until']<today(): raise ValueError('This proposal is declined or expired. Revise it before conversion.')
             edit=source; duplicate=True
         customers=db().find('customers',{'archived':0},sort=[('name',1)])
-        return render_template('billing.html',title='Create invoice' if not edit or duplicate else 'Edit invoice',products=product_rows(),customers=customers,edit=edit,duplicate=duplicate,submission=secrets.token_hex(32),proposal_source=source)
+        return render_template('billing.html',title='Create invoice' if not edit or duplicate else 'Edit invoice',products=product_rows(),customers=customers,edit=edit,duplicate=duplicate,submission=secrets.token_hex(32),proposal_source=source,categories=db().find('categories',sort=[('name',1)]))
 
     @app.get('/invoices')
     def invoices():
@@ -733,6 +761,7 @@ def create_app(database=None, backend=None):
         if policy['state']!='ACTIVE': return redirect(url_for('subscription_page'))
         permission=required_permission(endpoint)
         if endpoint=='billing_customer': permission='customer.manage'
+        if endpoint=='billing_product': permission='product.manage'
         if request.method=='POST':
             permission={'customers':'customer.manage','products':'product.manage','inventory':'inventory.adjust','payments':'payment.record'}.get(endpoint,permission)
         if endpoint=='billing' and (request.form.get('id') or request.args.get('edit')): permission='invoice.edit'
@@ -836,7 +865,7 @@ def create_app(database=None, backend=None):
                 raise
         return guarded
 
-    for endpoint in ('register','billing_customer','customers','products','inventory','billing','cancel','payments','settings_page','dashboard','invoices','view_invoice','invoice_pdf','reports','subscription_page','company_users','company_roles','proposals','proposal_form','view_proposal','proposal_pdf'):
+    for endpoint in ('register','billing_customer','billing_product','customers','products','inventory','billing','cancel','payments','settings_page','dashboard','invoices','view_invoice','invoice_pdf','reports','subscription_page','company_users','company_roles','proposals','proposal_form','view_proposal','proposal_pdf'):
         app.view_functions[endpoint]=transactional(app.view_functions[endpoint])
 
     from password_recovery import install_recovery

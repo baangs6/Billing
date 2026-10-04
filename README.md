@@ -111,3 +111,5 @@ Products supports bulk import from UTF-8 CSV and Excel (.xlsx). Download the tem
 ### Invoice numbering
 
 In Settings, choose an invoice number format using `{seq}` and optional `{fy}`, the next invoice number (1–999999999), and digit padding (1–9). For example `ABC/{fy}/{seq}` with next number 100 and 3 digits issues `ABC/26-27/100`, then `ABC/26-27/101`. Each new invoice advances the company sequence in the same transaction as stock and payment records. Edits, cancellations and failed saves do not consume a number. Numbers continue across financial years until changed in Settings; existing invoices are never renumbered. Duplicate numbers are rejected, and settings pages opened before another invoice was issued must be refreshed before saving.
+
+Invoice items use a searchable category followed by a product search restricted to that category. Missing categories and products can be created with a full product popup directly from billing. Product management permission is required to create products; quota, stock, SKU validation and company isolation apply. Saving selects the product without reloading the invoice draft.

@@ -361,3 +361,42 @@ def test_concurrent_invoice_numbers_are_unique(workspace):
     assert all(response.status_code==302 for response in responses)
     assert values(backend,'invoices','number')==['INV/26-27/001','INV/26-27/002']
     assert backend.database.business_settings.find_one({'business_id':1})['data']['next_invoice_number']==3
+
+
+def test_inline_category_product_creation_and_invoice(workspace):
+    client, post, backend=workspace
+    data=dict(name='Wall fan',sku='FAN-01',category='Fans',description='Quiet fan',hsn='8414',unit='PCS',gst='18',min_stock='2',selling_price='1500',purchase_price='900',mrp='1800',stock='4')
+    response=post('/billing/product',data)
+    assert response.status_code==201
+    product=response.json['product']
+    assert product['quantity']==4000 and product['selling_price']==150000
+    assert backend.database.products.find_one({'id':product['id']})['business_id']==1
+    assert backend.database.categories.find_one({'name':'Fans'})['business_id']==1
+    assert count(backend,'invoices')==0
+    assert b'category-search' in client.get('/billing').data
+    data.update(name='Ceiling fan',sku='FAN-02',category='fans')
+    response=post('/billing/product',data)
+    assert response.status_code==201 and response.json['product']['data']['category']=='Fans'
+    assert backend.database.categories.count_documents({'name':'Fans'})==1
+    invoice_data=payload()
+    invoice_data['items']=json.dumps([dict(product_id=product['id'],name=product['name'],quantity=1,rate='1500',mrp='1800',discount=0,gst='18',hsn='8414')])
+    post('/billing',invoice_data)
+    assert backend.database.inventory.find_one({'product_id':product['id']})['quantity']==3000
+
+
+def test_inline_product_validation_permissions_and_limits(workspace):
+    client, post, backend=workspace
+    data=dict(name='Fan',sku='LAMP-01',category='Fans',gst='18',selling_price='100',stock='1')
+    assert post('/billing/product',data).status_code==400
+    for field,value in [('gst','bad'),('selling_price','-1'),('stock','-1'),('category','')]:
+        invalid=data|dict(sku='NEW-1')|{field:value}
+        assert post('/billing/product',invalid).status_code==400
+        assert count(backend,'products')==1 and backend.database.categories.count_documents({'name':'Fans'})==0
+    sub=backend.database.subscriptions.find_one({'business_id':1,'current':True})
+    backend.database.subscriptions.update_one({'_id':sub['_id']},{'$set':{'plan.limits.products':1}})
+    assert post('/billing/product',data|dict(sku='NEW-1')).status_code==400
+    assert client.post('/billing/product',data=data).status_code==400
+    role=backend.database.roles.find_one({'business_id':1,'name':'COMPANY_ADMIN'})
+    backend.database.roles.update_one({'_id':role['_id']},{'$pull':{'permissions':'product.manage'}})
+    assert post('/billing/product',data|dict(sku='NEW-1')).status_code==403
+    assert count(backend,'products')==1
