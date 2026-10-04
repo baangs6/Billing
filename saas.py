@@ -226,6 +226,9 @@ def initialize_saas(backend):
             platform.insert('plans',dict(name='Existing workspace',active=False,legacy=True,version=1,monthly_price=0,yearly_price=0,trial_days=0,features={k:True for k in FEATURES},limits=dict(users=None,products=None,invoices=None)),session)
         if not platform.one('plans',{'legacy':{'$ne':True}},session):
             platform.insert('plans',dict(name='Trial',active=True,legacy=False,version=1,monthly_price=0,yearly_price=0,trial_days=14,features={k:True for k in FEATURES},limits=dict(users=3,products=1000,invoices=500)),session)
+        for name,limits in [('Subscription',dict(users=10,products=5000,invoices=2000)),('Unlimited',dict(users=None,products=None,invoices=None))]:
+            if not platform.one('plans',{'name':name},session):
+                platform.insert('plans',dict(name=name,description='Free launch offer. Paid pricing may be introduced for future subscriptions.',active=True,legacy=False,version=1,monthly_price=0,yearly_price=0,trial_days=0,features={k:True for k in FEATURES},limits=limits),session)
     platform.transaction(defaults)
     for company in platform.rows('businesses',{'status':{'$exists':False}}):
         def migrate(session,store):

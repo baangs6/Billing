@@ -206,6 +206,7 @@ def create_admin_app(backend=None):
             name=request.form.get('name','').strip()
             if not name: raise ValueError('Plan name is required.')
             def integer(field,unlimited=False):
+                if unlimited and request.form.get('unlimited_'+field.removeprefix('max_'))=='1': return None
                 raw=request.form.get(field,'').strip()
                 if unlimited and raw=='': return None
                 value=int(raw)

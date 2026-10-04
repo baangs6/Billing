@@ -1,3 +1,4 @@
 document.querySelectorAll('.confirm').forEach(form=>form.addEventListener('submit',event=>{if(!confirm(form.dataset.confirm))event.preventDefault()}));
 const company=document.querySelector('#payment-company'),subscription=document.querySelector('#payment-subscription');
 if(company&&subscription){const update=()=>{let first=null;for(const option of subscription.options){const match=option.dataset.company===company.value;option.hidden=!match;option.disabled=!match;if(match&&!first)first=option;}if(!subscription.selectedOptions[0]||subscription.selectedOptions[0].disabled)subscription.value=first?.value||'';};company.addEventListener('change',update);update();}
+document.querySelectorAll('[data-unlimited]').forEach(toggle=>{const input=document.querySelector('[name='+toggle.dataset.unlimited+']');const update=()=>{input.disabled=toggle.checked;input.placeholder=toggle.checked?'Unlimited':'Enter a limit';};toggle.addEventListener('change',update);update();});

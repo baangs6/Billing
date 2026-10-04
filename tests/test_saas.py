@@ -293,3 +293,22 @@ def test_admin_sessions_revoked_and_renewal_rejection(owner,workspace):
     assert company.get('/').status_code==200
     backend.database.admin_users.update_one({'id':1},{'$inc':{'session_version':1}})
     assert admin.get('/companies').headers['Location']=='/login'
+
+
+def test_subscription_and_unlimited_plan_defaults(owner):
+    from saas import initialize_saas
+    admin,post,backend,*_=owner
+    assert backend.database.plans.find_one({'name':'Subscription'})['active'] is True
+    unlimited=backend.database.plans.find_one({'name':'Unlimited'})
+    assert unlimited['limits']==dict(users=None,products=None,invoices=None)
+    assert unlimited['trial_days']==0 and unlimited['active'] is True
+    fields=dict(id=unlimited['id'],name='Unlimited',monthly_price='999',yearly_price='9990',trial_days='0',active='1',unlimited_users='1',unlimited_products='1',unlimited_invoices='1',max_users='1',max_products='1',max_invoices='1')
+    fields.update({feature:'1' for feature in FEATURES})
+    assert post('/plans',fields).status_code==302
+    initialize_saas(backend)
+    changed=backend.database.plans.find_one({'id':unlimited['id']})
+    assert changed['monthly_price']==99900
+    assert changed['limits']==dict(users=None,products=None,invoices=None)
+    assert changed['active'] is True
+    assert backend.database.plans.count_documents({'name':'Unlimited'})==1
+    assert b'Unlimited users' in admin.get('/plans').data
