@@ -45,7 +45,7 @@ def build_invoice_pdf(inv,proposal=False):
         values.append(f"{i['total']/100:,.2f}"); data.append([p(v) for v in values])
     story.extend([table(data,widths,True),Spacer(1,16)])
     totals=[]
-    for label,key in [('Subtotal','subtotal'),('Discount','discount'),('Taxable amount','taxable'),('CGST','cgst'),('SGST','sgst'),('IGST','igst'),('Grand total','total'),('Received','received'),('Balance due','balance')]:
+    for label,key in [('Subtotal','subtotal'),('Discount','discount'),('Taxable amount' if gst else 'Total amount','taxable'),('CGST','cgst'),('SGST','sgst'),('IGST','igst'),('Grand total','total'),('Received','received'),('Balance due','balance')]:
         if proposal and key in ('received','balance'): continue
         if key in ('cgst','sgst','igst') and not inv[key]: continue
         totals.append([p(label),p(fmt(inv[key]),right)])

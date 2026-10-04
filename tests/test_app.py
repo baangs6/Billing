@@ -235,6 +235,8 @@ def test_invoice_gstin_visibility(workspace, invoice_type):
     for rendered in (html, pdf_text):
         assert 'Acme Electronics' in rendered and 'Anita Stores' in rendered
         assert 'Tamil Nadu' in rendered
+        assert ('Taxable amount' in rendered) == (invoice_type == 'GST')
+        assert ('Total amount' in rendered) == (invoice_type == 'NON-GST')
         for value in ('GSTIN:', '33ABCDE1234F1Z5', customer_gstin):
             assert (value in rendered) == (invoice_type == 'GST')
     snapshot = backend.database.invoices.find_one({'id': 1})['snapshot']
