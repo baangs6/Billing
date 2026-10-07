@@ -11,7 +11,7 @@ import time
 from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from pathlib import Path
-from flask import Flask, abort, flash, g, redirect, render_template, request, session, url_for, Response
+from flask import Flask, abort, flash, g, redirect, render_template, request, session, url_for, Response, send_file
 from werkzeug.security import generate_password_hash, check_password_hash
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
@@ -65,6 +65,13 @@ def calculate(items, kind, interstate):
         for key, val in dict(subtotal=base, discount=item['discount'], taxable=taxable, cgst=cgst, sgst=sgst, igst=igst, total=item['total']).items():
             totals[key] += val
     return totals
+
+def invoice_filename(inv):
+    import re
+    name=re.sub(r'[<>:"/\\|?*\x00-\x1f\x7f]', ' ',inv['snapshot']['customer']['name'])
+    name=re.sub(r'\s+',' ',name).strip(' .')[:120].rstrip(' .') or 'Customer'
+    if name.upper().split('.')[0] in {'CON','PRN','AUX','NUL',*[f'COM{i}' for i in range(1,10)],*[f'LPT{i}' for i in range(1,10)]}: name='Customer '+name
+    return name+'.pdf'
 
 def create_app(database=None, backend=None):
     app = Flask(__name__)
@@ -611,7 +618,8 @@ def create_app(database=None, backend=None):
 
     @app.get('/invoices/<int:ident>')
     def view_invoice(ident):
-        return render_template('invoice.html',title='Invoice details',inv=invoice(ident))
+        inv=invoice(ident)
+        return render_template('invoice.html',title='Invoice details',inv=inv,filename=invoice_filename(inv))
 
     @app.post('/invoices/<int:ident>/cancel')
     def cancel(ident):
@@ -628,15 +636,29 @@ def create_app(database=None, backend=None):
     def payments():
         if request.method=='POST':
             with db():
-                inv=invoice(request.form['invoice']); amount=money(request.form['amount']); day=request.form['date']; date.fromisoformat(day)
+                previous=owned('payments',request.form['id']) if request.form.get('id') else None
+                if previous and str(previous.get('version',1))!=request.form.get('version'): raise ValueError('Payment changed in another window. Reload before editing.')
+                if previous and str(previous['invoice_id'])!=request.form.get('invoice'): raise ValueError('A recorded payment cannot be moved to another invoice.')
+                inv=invoice(previous['invoice_id'] if previous else request.form['invoice'])
+                amount=money(request.form['amount']); day=date.fromisoformat(request.form['date']).isoformat()
                 method=request.form['method']
                 if method not in ('Cash','UPI','Bank Transfer','Card','Cheque','Other'): raise ValueError('Invalid payment method.')
-                if inv['status']!='FINAL' or not 0<amount<=inv['balance']: raise ValueError('Payment must be positive and within the balance of an active invoice.')
-                pid=db().insert('payments',dict(invoice_id=inv['id'],amount=amount,date=day,method=method,reference=request.form.get('reference',''),notes=request.form.get('notes','')))
-                audit('record','payment',pid)
-            flash('Payment recorded.'); return redirect(url_for('view_invoice',ident=inv['id']))
+                available=inv['balance']+(previous['amount'] if previous else 0)
+                if inv['status']!='FINAL' or not 0<amount<=available: raise ValueError('Payment must be positive and cannot exceed the invoice total after other payments.')
+                values=dict(amount=amount,date=day,method=method,reference=request.form.get('reference','').strip(),notes=request.form.get('notes','').strip())
+                if previous:
+                    pid=previous['id']; db().update('payments',{'id':pid},values|{'version':previous.get('version',1)+1})
+                    audit('edit','payment',pid,json.dumps(dict(previous=previous,current=values)))
+                else:
+                    pid=db().insert('payments',dict(values,invoice_id=inv['id'],version=1))
+                    audit('record','payment',pid)
+            flash('Payment updated.' if previous else 'Payment recorded.'); return redirect(url_for('view_invoice',ident=inv['id']))
+        edit=owned('payments',request.args['edit']) if request.args.get('edit') else None
+        if edit and 'payment.record' not in g.access['permissions']: abort(403)
+        if edit and invoice(edit['invoice_id'])['status']!='FINAL': raise ValueError('Payments on cancelled invoices cannot be edited.')
         rows=payment_rows()
-        return render_template('payments.html',title='Payments',rows=rows,invoices=[i for i in all_invoices() if i['status']=='FINAL' and i['balance']>0])
+        invoices=[i for i in all_invoices() if i['status']=='FINAL' and (i['balance']>0 or edit and i['id']==edit['invoice_id'])]
+        return render_template('payments.html',title='Edit payment' if edit else 'Payments',rows=rows,invoices=invoices,edit=edit)
 
     @app.route('/settings',methods=['GET','POST'])
     def settings_page():
@@ -708,7 +730,7 @@ def create_app(database=None, backend=None):
     @app.get('/invoices/<int:ident>/pdf')
     def invoice_pdf(ident):
         inv=invoice(ident)
-        return Response(build_invoice_pdf(inv),mimetype='application/pdf',headers={'Content-Disposition':f"{'inline' if request.args.get('preview') else 'attachment'}; filename=invoice-{ident}.pdf"})
+        return send_file(io.BytesIO(build_invoice_pdf(inv)),mimetype='application/pdf',as_attachment=not request.args.get('preview'),download_name=invoice_filename(inv))
 
     @app.get('/reports')
     def reports():

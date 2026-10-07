@@ -400,3 +400,55 @@ def test_inline_product_validation_permissions_and_limits(workspace):
     backend.database.roles.update_one({'_id':role['_id']},{'$pull':{'permissions':'product.manage'}})
     assert post('/billing/product',data|dict(sku='NEW-1')).status_code==403
     assert count(backend,'products')==1
+
+
+def test_customer_invoice_filename_and_paid_payment_edit(workspace):
+    from app import invoice_filename
+    client,post,backend=workspace
+    post('/billing',payload()|dict(received='236'))
+    response=client.get('/invoices/1/pdf')
+    assert 'filename="Anita Stores.pdf"' in response.headers['Content-Disposition']
+    assert 'inline' in client.get('/invoices/1/pdf?preview=1').headers['Content-Disposition']
+    html=client.get('/invoices/1').get_data(as_text=True)
+    assert 'Edit invoice' in html and '/payments?edit=1' in html and 'data-filename="Anita Stores.pdf"' in html
+    assert client.get('/payments?edit=1').status_code==200
+    assert b'Save payment changes' in client.get('/payments?edit=1').data
+    assert post('/payments',dict(id='1',version='1',invoice='1',amount='136',date='2026-10-07',method='UPI',reference='UTR-123',notes='Corrected payment')).status_code==302
+    payment=backend.database.payments.find_one({'id':1})
+    assert payment['amount']==13600 and payment['version']==2 and payment['method']=='UPI'
+    assert b'UTR-123' in client.get('/invoices/1').data
+    finance=client.get('/finance?export=csv').data
+    assert b'136.00,Bank,UPI' in finance and b'Corrected payment' in finance
+    assert invoice_filename({'snapshot':{'customer':{'name':'Tamil customer / test:*'}}})=='Tamil customer test.pdf'
+    backend.database.invoices.update_one({'id':1},{'$set':{'snapshot.customer.name':'Café Stores'}})
+    assert "filename*=UTF-8''" in client.get('/invoices/1/pdf').headers['Content-Disposition']
+
+
+def test_payment_edits_reject_overpayment_and_stale_versions(workspace):
+    client,post,backend=workspace
+    post('/billing',payload()|dict(received='50'))
+    post('/payments',dict(invoice='1',amount='100',date='2026-10-07',method='Cash'))
+    edit=dict(id='1',version='1',invoice='1',amount='137',date='2026-10-07',method='Cash')
+    post('/payments',edit)
+    assert backend.database.payments.find_one({'id':1})['amount']==5000
+    concurrent_posts(client,'/payments',edit|dict(amount='60'))
+    payment=backend.database.payments.find_one({'id':1})
+    assert payment['amount']==6000 and payment['version']==2
+    post('/payments',edit|dict(amount='70'))
+    assert backend.database.payments.find_one({'id':1})['amount']==6000
+    assert count(backend,'payments')==2
+    assert client.post('/payments',data=edit).status_code==400
+
+
+def test_payment_edit_permissions_and_tenant_isolation(workspace):
+    client,post,backend=workspace
+    post('/billing',payload()|dict(received='50'))
+    role=backend.database.roles.find_one({'business_id':1,'name':'COMPANY_ADMIN'})
+    backend.database.roles.update_one({'id':role['id']},{'$pull':{'permissions':'payment.record'}})
+    assert client.get('/payments?edit=1').status_code==403
+    assert post('/payments',dict(id='1',version='1',invoice='1',amount='20',date='2026-10-07',method='Cash')).status_code==403
+    post('/logout',{}); client.get('/register')
+    post('/register',dict(name='Other company',email='other-edit@example.com',password='another secure password'))
+    assert client.get('/payments?edit=1').status_code==404
+    assert post('/payments',dict(id='1',version='1',invoice='1',amount='20',date='2026-10-07',method='Cash')).status_code==404
+    assert backend.database.payments.find_one({'id':1})['amount']==5000
