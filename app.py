@@ -423,7 +423,7 @@ def create_app(database=None, backend=None):
                     cid=category['id'] if category else db().insert('categories',{'name':data['category']})
                     active=int(request.form.get('active','1'))
                     if active not in (0,1): raise ValueError('Invalid product status.')
-                    values=dict(name=name,sku=sku,data=data,selling_price=money(request.form['selling_price']),purchase_price=money(request.form['purchase_price']),mrp=money(request.form['mrp']),active=active,category_id=cid)
+                    values=dict(name=name,sku=sku,data=data,selling_price=money(request.form['selling_price']),purchase_price=money(request.form.get('purchase_price') or '0'),mrp=money(request.form['mrp']),active=active,category_id=cid)
                     if ident: db().update('products',{'id':ident},values)
                     else:
                         ident=db().insert('products',values)
