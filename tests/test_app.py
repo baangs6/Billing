@@ -505,3 +505,43 @@ def test_optional_product_codes(workspace):
     for url in ['/products','/billing']:
         field=re.search(r'<input[^>]*name="sku"[^>]*>',client.get(url).get_data(as_text=True))
         assert field and 'required' not in field.group()
+
+
+def test_company_factory_reset(workspace):
+    client,post,backend=workspace
+    post('/billing',payload()|dict(received='50'))
+    before=backend.database.invoices.count_documents({})
+    fields=dict(action='reset_company',confirmation='RESET COMPANY',password='wrong')
+    post('/settings',fields)
+    assert backend.database.invoices.count_documents({})==before
+    post('/settings',fields|dict(password='correct horse battery staple',confirmation='wrong'))
+    assert backend.database.invoices.count_documents({})==before
+    assert client.post('/settings',data=fields).status_code==400
+    response=post('/settings',fields|dict(password='correct horse battery staple'))
+    assert response.status_code==302
+    assert count(backend,'invoices')==count(backend,'products')==count(backend,'payments')==0
+    assert count(backend,'users')==1 and count(backend,'subscriptions')==1
+    assert values(backend,'business_settings','data')[0]['next_invoice_number']==1
+    assert client.get('/settings').status_code==302
+    assert post('/login',dict(email='owner@example.com',password='correct horse battery staple')).status_code==302
+    assert client.get('/settings').status_code==200
+
+
+def test_company_reset_permissions_and_rollback(workspace,monkeypatch):
+    from mongo_store import MongoStore
+    client,post,backend=workspace
+    fields=dict(action='reset_company',confirmation='RESET COMPANY',password='correct horse battery staple')
+    role=backend.database.roles.find_one({'business_id':1,'name':'COMPANY_ADMIN'})
+    backend.database.roles.update_one({'id':role['id']},{'$set':{'protected':False}})
+    assert post('/settings',fields).status_code==403
+    assert count(backend,'products')==1
+    backend.database.roles.update_one({'id':role['id']},{'$set':{'protected':True}})
+    original=MongoStore.insert
+    def fail_settings(self,name,document):
+        if name=='business_settings': raise ValueError('Simulated reset failure')
+        return original(self,name,document)
+    monkeypatch.setattr(MongoStore,'insert',fail_settings)
+    post('/settings',fields)
+    assert count(backend,'products')==1 and count(backend,'users')==1
+    assert count(backend,'business_settings')==1
+    assert client.get('/settings').status_code==200

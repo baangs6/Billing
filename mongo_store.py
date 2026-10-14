@@ -250,6 +250,8 @@ class MongoStore:
 
     def register_business(self,name,email,password_hash,settings):
         if self.business_id is not None: raise PermissionError('Registration requires an unauthenticated context.')
+        # Serialize new registrations with owner-wide reset transactions.
+        self.backend.database.platform_meta.update_one({'_id':'write_lock'},{'$inc':{'version':1}},session=self.mongo_session)
         bid=self.insert('businesses',{'name':name,'lock_version':0})
         self.business_id=bid
         try:

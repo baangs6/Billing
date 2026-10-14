@@ -272,6 +272,24 @@ def create_admin_app(backend=None):
     @app.route('/settings',methods=['GET','POST'])
     def settings():
         if request.method=='POST':
+            if request.form.get('action')=='reset_platform':
+                from factory_reset import confirm_reset
+                from mongo_store import TENANT_COLLECTIONS
+                def reset(ms,store):
+                    owner=backend.database.admin_users.find_one({'id':g.admin['id'],'active':True,'session_version':g.admin['session_version']},session=ms)
+                    if not owner: abort(403)
+                    confirm_reset(backend,owner,request.form,'RESET ALL COMPANIES','owner')
+                    # Lock every company against concurrent billing before removing its records.
+                    backend.database.businesses.update_many({}, {'$inc':{'lock_version':1}},session=ms)
+                    for name in TENANT_COLLECTIONS:
+                        backend.database[name].delete_many({},session=ms)
+                    backend.database.businesses.delete_many({},session=ms)
+                    backend.database.subscription_payments.delete_many({},session=ms)
+                    backend.database.password_resets.delete_many({'kind':'company'},session=ms)
+                    platform.audit(owner['id'],'platform.reset',None,None,{'companies_removed':True},ms,*metadata())
+                platform.transaction(reset)
+                flash('All companies and their data permanently removed. Owner login, plans, platform settings and security audit history retained.')
+                return redirect(url_for('settings'))
             values=dict(registration_open=request.form.get('registration_open')=='1',renewal_contact=request.form.get('renewal_contact','').strip(),support_email=request.form.get('support_email','').strip())
             if values['support_email'] and not re.fullmatch(r'[^\s@]+@[^\s@]+\.[^\s@]+',values['support_email']): raise ValueError('Enter a valid support email.')
             def change(ms,store):

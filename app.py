@@ -684,6 +684,26 @@ def create_app(database=None, backend=None):
     @app.route('/settings',methods=['GET','POST'])
     def settings_page():
         if request.method=='POST':
+            if request.form.get('action')=='reset_company':
+                from factory_reset import confirm_reset
+                from mongo_store import TENANT_COLLECTIONS
+                user=owned('users',session['user'])
+                role=owned('roles',user['role_id'])
+                if not role.get('protected') or role['name']!='COMPANY_ADMIN': abort(403)
+                confirm_reset(backend,user,request.form,'RESET COMPANY','company')
+                bid=session['business']; ms=db().mongo_session
+                for name in TENANT_COLLECTIONS-{'users','subscriptions','roles'}:
+                    backend.database[name].delete_many({'business_id':bid},session=ms)
+                backend.database.users.delete_many({'business_id':bid,'id':{'$ne':user['id']}},session=ms)
+                backend.database.roles.delete_many({'business_id':bid},session=ms)
+                roles=seed_roles(db())
+                db().update('users',{'id':user['id']},{'role_id':roles['COMPANY_ADMIN']['id']},inc={'session_version':1})
+                db().insert('business_settings',{'data':DEFAULTS|dict(name=g.access['company']['name'],email=user['email'],next_invoice_number=1,invoice_number_digits=3)})
+                db().update('businesses',{},dict(inventory_reconciliation_required=False))
+                backend.database.password_resets.delete_many({'kind':'company','business_id':bid},session=ms)
+                audit('reset','company',bid,'Permanent company reset confirmed by current password. Login and subscription retained.')
+                session.clear(); flash('Company data permanently reset. Sign in again to start fresh.')
+                return redirect(url_for('login'))
             if request.form.get('action')=='reconcile_inventory':
                 if not g.access['features'].get('inventory'): raise ValueError('Inventory is disabled.')
                 if request.form.get('confirmed')!='1': raise ValueError('Confirm that all product balances have been checked.')
@@ -727,7 +747,8 @@ def create_app(database=None, backend=None):
                 db().update('business_settings',{}, {'data':data}); db().update('businesses',{}, {'name':data['name']}); audit('update','settings',session['business'])
             flash('Business settings saved.'); return redirect(url_for('settings_page'))
         events=db().find('audit_events',sort=[('id',-1)],limit=50)
-        return render_template('settings.html',title='Business settings',events=events)
+        role=db().one('roles',{'id':g.access['user']['role_id']})
+        return render_template('settings.html',title='Business settings',events=events,can_reset=bool(role and role.get('protected') and role['name']=='COMPANY_ADMIN'))
 
     def pdf_document(title, rows, business=None):
         output=io.BytesIO(); styles=getSampleStyleSheet(); story=[]

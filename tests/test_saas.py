@@ -312,3 +312,54 @@ def test_subscription_and_unlimited_plan_defaults(owner):
     assert changed['active'] is True
     assert backend.database.plans.count_documents({'name':'Unlimited'})==1
     assert b'Unlimited users' in admin.get('/plans').data
+
+
+def test_owner_factory_reset(owner,workspace):
+    admin,submit,backend,secret,password=owner
+    workspace[1]('/billing',payload())
+    register_pending(backend)
+    fields=dict(action='reset_platform',confirmation='RESET ALL COMPANIES',password='wrong')
+    submit('/settings',fields)
+    assert backend.database.businesses.count_documents({})==2
+    submit('/settings',fields|dict(password=password,confirmation='wrong'))
+    assert backend.database.businesses.count_documents({})==2
+    assert admin.post('/settings',data=fields).status_code==400
+    submit('/settings',fields|dict(password=password))
+    assert backend.database.businesses.count_documents({})==0
+    assert backend.database.users.count_documents({})==0
+    assert backend.database.invoices.count_documents({})==0
+    assert backend.database.admin_users.count_documents({})==1
+    assert backend.database.plans.count_documents({})>0
+    assert admin.get('/').status_code==200
+    client,bid=register_pending(backend,email='fresh@example.com')
+    assert backend.database.businesses.count_documents({})==1
+
+
+def test_company_reset_isolation_and_password_limit(workspace):
+    client,post,backend=workspace
+    other,bid=register_pending(backend,email='keep@example.com')
+    before=backend.database.businesses.find_one({'id':bid})
+    fields=dict(action='reset_company',confirmation='RESET COMPANY',password='correct horse battery staple')
+    post('/settings',fields)
+    assert backend.database.businesses.find_one({'id':bid})==before
+    assert backend.database.users.count_documents({'business_id':bid})==1
+    client.get('/login')
+    post('/login',dict(email='owner@example.com',password='correct horse battery staple'))
+    for _ in range(5): post('/settings',fields|dict(password='wrong'))
+    assert backend.login_attempt('factory-reset:company:1')['count']==5
+    post('/settings',fields)
+    assert backend.database.audit_events.count_documents({'action':'reset'})==1
+    assert b'Too many password attempts' in client.get('/settings').data
+
+
+def test_owner_reset_rolls_back(owner,workspace,monkeypatch):
+    admin,submit,backend,secret,password=owner
+    original=Platform.audit
+    def fail_audit(self,actor,action,*args,**kwargs):
+        if action=='platform.reset': raise ValueError('Simulated failure after deletion')
+        return original(self,actor,action,*args,**kwargs)
+    monkeypatch.setattr(Platform,'audit',fail_audit)
+    submit('/settings',dict(action='reset_platform',confirmation='RESET ALL COMPANIES',password=password))
+    assert backend.database.businesses.count_documents({})==1
+    assert backend.database.products.count_documents({})==1
+    assert backend.database.users.count_documents({})==1

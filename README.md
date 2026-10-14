@@ -121,3 +121,11 @@ Finance tracks expenses paid, other income and opening balances for Cash, Bank a
 Manual entries support custom categories, payment methods, references, notes, optimistic edit versioning, audited voiding and PDF/PNG/JPEG receipt attachments up to 1 MB. CSV opens in Excel; PDF reports include period totals. Company Admin has Finance access; give other roles `finance.view` and/or `finance.manage` in Roles. Exports additionally require `report.export`, and PDF exports require the PDF plan feature. Every Finance write is transactional, tenant-scoped and idempotent on repeated submissions. Receipt downloads use tenant checks and attachment headers. Deployment automatically initializes the new finance collection, indexes and counter without changing existing financial records.
 
 Invoice deletion moves unpaid invoices to recoverable Trash, restores stock once, and keeps invoice numbers and audit history. Open Invoices → Trash to restore a document as cancelled; restoration does not deduct stock or reactivate sales. Invoices with payments cannot be deleted. Delete and Restore require the Cancel invoices permission.
+
+## Permanent resets
+
+Company Settings → Reset company is restricted to Company Admin accounts. It permanently removes company business data, other users, custom roles and settings; it keeps the acting administrator login and current subscription, resets invoice numbering to 1, and invalidates that administrator's sessions. Deleted staff sessions cannot authenticate. Company name and login email are retained.
+
+Owner System settings → Reset all companies removes every company and all tenant records, company subscriptions and subscription payments. Owner accounts, MFA, owner sessions, plan definitions, platform policy and security audit history remain. Companies must register again. This resets data, not deployed source files or MongoDB schema; numeric record IDs are never reused.
+
+Both require the signed-in account's current password, exact typed confirmation and CSRF token. Five incorrect password attempts block reset verification for 15 minutes. Reset writes are atomic and serialize with company writes and new registrations. No backup or Undo is provided; use the existing private backup command before resetting if recovery is needed. These actions are never run automatically at startup or deployment.
