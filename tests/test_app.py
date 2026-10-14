@@ -487,3 +487,21 @@ def test_invoice_trash_permissions_and_tenant(workspace):
     assert post('/invoices/1/delete',{}).status_code==404
     assert post('/invoices/1/restore',{}).status_code==404
     assert not backend.database.invoices.find_one({'business_id':1,'id':1}).get('deleted')
+
+
+def test_optional_product_codes(workspace):
+    import io
+    client,post,backend=workspace
+    data=dict(name='No code',category='Lighting',selling_price='100',mrp='120',gst='18',min_stock='0',stock='0',unit='PCS',active='1')
+    post('/products',data)
+    response=post('/billing/product',data|dict(name='Quick no code',sku=''))
+    assert response.status_code==201
+    post('/products',dict(action='import',file=(io.BytesIO(b'name,selling_price\nImported no code,50\nAnother no code,60\n'),'products.csv')))
+    products=list(backend.database.products.find({}))
+    assert len(products)==5
+    assert len({p['sku'] for p in products})==5
+    assert all(p['sku'] for p in products)
+    import re
+    for url in ['/products','/billing']:
+        field=re.search(r'<input[^>]*name="sku"[^>]*>',client.get(url).get_data(as_text=True))
+        assert field and 'required' not in field.group()

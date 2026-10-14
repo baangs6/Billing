@@ -106,7 +106,7 @@ Links expire after 30 minutes, contain a random token stored only as a hash, and
 
 ### Product import
 
-Products supports bulk import from UTF-8 CSV and Excel (.xlsx). Download the template in Products and replace its example row. Required headers are `name`, `sku`, and `selling_price`; optional columns are `category`, `description`, `hsn`, `unit`, `purchase_price`, `mrp`, `gst`, `min_stock`, and `stock`. Prices are rupees and stock is the opening quantity. Imports add new products only, reject duplicate SKUs, require product management permission, and enforce plan limits. Up to 500 products and 5 MB per file; formulas are rejected. The entire import commits atomically, including opening stock and audit records.
+Products supports bulk import from UTF-8 CSV and Excel (.xlsx). Download the template in Products and replace its example row. Required headers are `name` and `selling_price`; SKU is optional and a unique code is generated when blank or omitted. Optional columns are `sku`, `category`, `description`, `hsn`, `unit`, `purchase_price`, `mrp`, `gst`, `min_stock`, and `stock`. Prices are rupees and stock is the opening quantity. Imports add new products only, reject duplicate SKUs, require product management permission, and enforce plan limits. Up to 500 products and 5 MB per file; formulas are rejected. The entire import commits atomically, including opening stock and audit records.
 
 ### Invoice numbering
 

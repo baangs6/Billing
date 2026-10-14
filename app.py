@@ -316,8 +316,8 @@ def create_app(database=None, backend=None):
 
     @app.post('/billing/product')
     def billing_product():
-        name=request.form.get('name','').strip(); sku=request.form.get('sku','').strip(); category_name=request.form.get('category','').strip()
-        if not name or not sku or not category_name: raise ValueError('Product name, SKU and category are required.')
+        name=request.form.get('name','').strip(); sku=request.form.get('sku','').strip() or 'AUTO-'+secrets.token_hex(12).upper(); category_name=request.form.get('category','').strip()
+        if not name or not category_name: raise ValueError('Product name and category are required.')
         if any(row['sku'].casefold()==sku.casefold() for row in db().find('products')): raise ValueError('This SKU already exists. Use a unique product code.')
         try: gst=Decimal(request.form.get('gst') or '0')
         except InvalidOperation: raise ValueError('Choose a configured GST rate.')
@@ -374,8 +374,8 @@ def create_app(database=None, backend=None):
         rates=[Decimal(rate) for rate in settings()['gst_rates'].split(',')]
         for number,row in records:
             try:
-                name=row.get('name',''); sku=row.get('sku','')
-                if not name or not sku: raise ValueError('Product name and SKU are required.')
+                name=row.get('name',''); sku=row.get('sku','') or 'AUTO-'+secrets.token_hex(12).upper()
+                if not name: raise ValueError('Product name is required.')
                 if sku.casefold() in existing: raise ValueError('SKU already exists in this company or appears twice in the file.')
                 existing.add(sku.casefold())
                 gst=Decimal(row.get('gst') or '0')
@@ -419,8 +419,8 @@ def create_app(database=None, backend=None):
                 if request.form.get('action')=='delete':
                     db().update('products',{'id':ident},{'active':0}); audit('archive','product',ident)
                 else:
-                    name=request.form.get('name','').strip(); sku=request.form.get('sku','').strip()
-                    if not name or not sku: raise ValueError('Product name and SKU are required.')
+                    name=request.form.get('name','').strip(); sku=request.form.get('sku','').strip() or 'AUTO-'+secrets.token_hex(12).upper()
+                    if not name: raise ValueError('Product name is required.')
                     rates=[Decimal(r) for r in settings()['gst_rates'].split(',')]
                     gst=Decimal(request.form.get('gst','0'))
                     if gst not in rates: raise ValueError('Choose a configured GST rate.')

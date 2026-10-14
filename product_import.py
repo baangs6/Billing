@@ -31,8 +31,8 @@ def read_products(upload):
             raise ValueError('Use a UTF-8 CSV or Excel (.xlsx) file.')
         try:
             headers = [str(value or '').strip().lower().replace(' ', '_') for value in next(rows, [])]
-            if len(headers) != len(set(headers)) or not {'name','sku','selling_price'}.issubset(headers):
-                raise ValueError('Use unique column headers including name, sku and selling_price. Download the template.')
+            if len(headers) != len(set(headers)) or not {'name','selling_price'}.issubset(headers):
+                raise ValueError('Use unique column headers including name and selling_price. Download the template.')
             unknown = set(headers) - set(COLUMNS)
             if unknown:
                 raise ValueError('Unknown columns: ' + ', '.join(sorted(unknown)))
