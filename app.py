@@ -786,6 +786,13 @@ def create_app(database=None, backend=None):
                 db().update('business_settings',{}, {'data':data}); db().update('businesses',{}, {'name':data['name']}); audit('update','settings',session['business'])
             flash('Business settings saved.'); return redirect(url_for('settings_page'))
         events=db().find('audit_events',sort=[('id',-1)],limit=50)
+        import re
+        for event in events:
+            details=re.sub(r'data:image/[^;\s]+;base64,[A-Za-z0-9+/=]+','[Image data omitted]',str(event.get('details') or ''))
+            try: details=json.dumps(json.loads(details),ensure_ascii=False,indent=2)
+            except json.JSONDecodeError: pass
+            event['display_details']=details
+
         role=db().one('roles',{'id':g.access['user']['role_id']})
         return render_template('settings.html',title='Business settings',events=events,can_reset=bool(role and role.get('protected') and role['name']=='COMPANY_ADMIN'))
 

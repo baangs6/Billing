@@ -610,3 +610,17 @@ def test_selective_reset_dependencies_and_isolation(workspace):
     post('/settings',fields|dict(sections=['reports']))
     assert count(backend,'products')==1
     assert client.post('/settings',data=fields).status_code==400
+
+
+def test_audit_trail_compact_details(workspace):
+    client,post,backend=workspace
+    post('/billing',payload())
+    image='data:image/png;base64,'+'A'*5000
+    details=json.dumps(dict(current=dict(logo=image,name='<script>bad()</script>')))
+    event=backend.database.audit_events.find_one({'entity':'invoice'})
+    backend.database.audit_events.update_one({'id':event['id']},{'$set':{'details':details}})
+    html=client.get('/settings').get_data(as_text=True)
+    assert 'View details' in html and '[Image data omitted]' in html
+    assert image not in html and '<script>bad()</script>' not in html
+    assert '&lt;script&gt;bad()&lt;/script&gt;' in html
+    assert backend.database.audit_events.find_one({'id':event['id']})['details']==details
