@@ -624,3 +624,11 @@ def test_audit_trail_compact_details(workspace):
     assert image not in html and '<script>bad()</script>' not in html
     assert '&lt;script&gt;bad()&lt;/script&gt;' in html
     assert backend.database.audit_events.find_one({'id':event['id']})['details']==details
+
+
+def test_customer_form_opens_on_request(workspace):
+    client,post,backend=workspace
+    assert b'id="customer-editor"' not in client.get('/customers').data
+    assert b'/customers?add=1#customer-editor' in client.get('/customers').data
+    assert b'id="customer-editor"' in client.get('/customers?add=1').data
+    assert b'Save changes' in client.get('/customers?edit=1').data
