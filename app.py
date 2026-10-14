@@ -19,7 +19,7 @@ from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image
 from xml.sax.saxutils import escape
 from invoice_pdf import build_invoice_pdf
-from saas import access, quota, seed_roles, Platform, PERMISSIONS, FEATURES, local_month, stamp, subscription_state
+from saas import access, quota, seed_roles, Platform, PERMISSIONS, FEATURES, local_month, stamp, subscription_state, month_add
 
 ROOT = Path(__file__).parent
 DEFAULTS = dict(name='Your business', address='', phone='', email='', gstin='', state='Tamil Nadu', pin='', bank='', upi='', terms='Thank you for your business. Goods once sold are subject to the agreed return policy.', signatory='', logo='', signature='', prefix='INV/{fy}/{seq}', gst_rates='0,5,12,18,28', negative_stock=False)
@@ -165,7 +165,7 @@ def create_app(database=None, backend=None):
 
     @app.context_processor
     def context():
-        nav=[('dashboard','Dashboard','◫'),('billing','Billing','＋'),('proposals','Proposals','▧'),('invoices','Invoices','▤'),('customers','Customers','♧'),('products','Products','◇'),('inventory','Inventory','▦'),('payments','Payments','↗'),('finance_page','Finance','₹'),('reports','Reports','▥'),('settings_page','Settings','⚙'),('company_users','Users','♙'),('company_roles','Roles','◇'),('subscription_page','Subscription','▤')]
+        nav=[('dashboard','Dashboard','◫'),('billing','Billing','＋'),('proposals','Proposals','▧'),('invoices','Invoices','▤'),('service_reminders_page','Service reminders','◷'),('customers','Customers','♧'),('products','Products','◇'),('inventory','Inventory','▦'),('payments','Payments','↗'),('finance_page','Finance','₹'),('reports','Reports','▥'),('settings_page','Settings','⚙'),('company_users','Users','♙'),('company_roles','Roles','◇'),('subscription_page','Subscription','▤')]
         policy=g.get('access')
         if policy:
             nav=[entry for entry in nav if entry[0]=='subscription_page' or (policy['state']=='ACTIVE' and required_permission(entry[0]) in policy['permissions'] and (entry[0] not in ('inventory','reports','company_users','company_roles') or policy['features'].get({'inventory':'inventory','reports':'reports','company_users':'multiple_users','company_roles':'multiple_users'}[entry[0]],False)))]
@@ -273,7 +273,30 @@ def create_app(database=None, backend=None):
         for n in range(6,-1,-1):
             day=(date.fromisoformat(today())-timedelta(days=n)).isoformat()
             chart.append(dict(day=day[5:],sales=sum(i['total'] for i in active if i['date']==day),collections=sum(p['amount'] for p in pay if p['date']==day)))
-        return render_template('dashboard.html',title='Business overview',metrics=metrics,invoices=invoices[:5],payments=pay[:5],chart=chart,maximum=max([c['sales'] for c in chart]+[c['collections'] for c in chart]+[1]))
+        return render_template('dashboard.html',title='Business overview',metrics=metrics,invoices=invoices[:5],payments=pay[:5],chart=chart,service_due=sum(row['service_stage']=='due' for row in service_reminders()),maximum=max([c['sales'] for c in chart]+[c['collections'] for c in chart]+[1]))
+
+    def service_reminders():
+        rows=db().find('invoices',{'status':'FINAL','deleted':{'$ne':True}},sort=[('date',1),('id',1)])
+        for row in rows:
+            row['service_due']=month_add(date.fromisoformat(row['date']),12).isoformat()
+            row['service_stage']='completed' if row.get('service_completed_at') else 'due' if row['service_due']<=today() else 'upcoming'
+        return rows
+
+    @app.route('/service-reminders',methods=['GET','POST'])
+    def service_reminders_page():
+        if request.method=='POST':
+            inv=invoice(request.form.get('id'))
+            if inv['status']!='FINAL' or inv.get('deleted'): raise ValueError('Only active invoices have service reminders.')
+            if str(inv['version'])!=request.form.get('version'): raise ValueError('Invoice changed. Reload the reminders before updating.')
+            if month_add(date.fromisoformat(inv['date']),12).isoformat()>today(): raise ValueError('This service reminder is not due yet.')
+            if not inv.get('service_completed_at'):
+                db().update('invoices',{'id':inv['id']},{'service_completed_at':today()},inc={'version':1})
+                audit('complete_service','invoice',inv['id'])
+            flash('Service reminder marked completed.'); return redirect(url_for('service_reminders_page'))
+        stage=request.args.get('stage','due')
+        if stage not in ('due','upcoming','completed'): raise ValueError('Choose a valid reminder stage.')
+        rows=[row for row in service_reminders() if row['service_stage']==stage]
+        return render_template('service_reminders.html',title='Service reminders',rows=rows,stage=stage)
 
     def public_home():
         platform=Platform(backend)
@@ -821,7 +844,7 @@ def create_app(database=None, backend=None):
         return 'Database temporarily unavailable. Please try again shortly.',503
 
     def required_permission(endpoint):
-        return {'finance_page':'finance.view','finance_receipt':'finance.view','proposals':'invoice.view','proposal_form':'invoice.create','view_proposal':'invoice.view','proposal_pdf':'invoice.view','dashboard':'dashboard.view','billing':'invoice.create','invoices':'invoice.view','view_invoice':'invoice.view','invoice_pdf':'invoice.view','delete_invoice':'invoice.cancel','restore_invoice':'invoice.cancel','cancel':'invoice.cancel','customers':'customer.view','products':'product.view','inventory':'inventory.view','payments':'payment.view','reports':'report.view','settings_page':'settings.manage','company_users':'user.manage','company_roles':'role.manage'}.get(endpoint)
+        return {'finance_page':'finance.view','finance_receipt':'finance.view','service_reminders_page':'invoice.view','proposals':'invoice.view','proposal_form':'invoice.create','view_proposal':'invoice.view','proposal_pdf':'invoice.view','dashboard':'dashboard.view','billing':'invoice.create','invoices':'invoice.view','view_invoice':'invoice.view','invoice_pdf':'invoice.view','delete_invoice':'invoice.cancel','restore_invoice':'invoice.cancel','cancel':'invoice.cancel','customers':'customer.view','products':'product.view','inventory':'inventory.view','payments':'payment.view','reports':'report.view','settings_page':'settings.manage','company_users':'user.manage','company_roles':'role.manage'}.get(endpoint)
 
     def authorize(endpoint):
         policy=access(db(),session['user']); g.access=policy
@@ -837,7 +860,7 @@ def create_app(database=None, backend=None):
         if endpoint=='billing_product': permission='product.manage'
         if endpoint=='finance_page' and request.method=='POST': permission='finance.manage'
         if request.method=='POST':
-            if endpoint=='proposals': permission='invoice.edit'
+            if endpoint in ('proposals','service_reminders_page'): permission='invoice.edit'
             permission={'customers':'customer.manage','products':'product.manage','inventory':'inventory.adjust','payments':'payment.record'}.get(endpoint,permission)
         if endpoint=='billing' and (request.form.get('id') or request.args.get('edit')): permission='invoice.edit'
         if endpoint=='proposal_form' and (request.form.get('id') or request.args.get('edit')): permission='invoice.edit'
@@ -944,7 +967,7 @@ def create_app(database=None, backend=None):
     from finance import install_finance
     install_finance(app,db,owned,audit,money,today,payment_rows,pdf_document)
 
-    for endpoint in ('finance_page','finance_receipt','register','billing_customer','billing_product','customers','products','inventory','billing','cancel','delete_invoice','restore_invoice','payments','settings_page','dashboard','invoices','view_invoice','invoice_pdf','reports','subscription_page','company_users','company_roles','proposals','proposal_form','view_proposal','proposal_pdf'):
+    for endpoint in ('finance_page','finance_receipt','register','billing_customer','billing_product','customers','products','inventory','billing','cancel','delete_invoice','restore_invoice','payments','settings_page','dashboard','invoices','view_invoice','invoice_pdf','reports','subscription_page','company_users','company_roles','service_reminders_page','proposals','proposal_form','view_proposal','proposal_pdf'):
         app.view_functions[endpoint]=transactional(app.view_functions[endpoint])
 
     from password_recovery import install_recovery

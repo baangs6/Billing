@@ -545,3 +545,40 @@ def test_company_reset_permissions_and_rollback(workspace,monkeypatch):
     assert count(backend,'products')==1 and count(backend,'users')==1
     assert count(backend,'business_settings')==1
     assert client.get('/settings').status_code==200
+
+
+def test_annual_service_reminders(workspace,monkeypatch):
+    client,post,backend=workspace
+    post('/billing',payload()|dict(date='2026-10-14'))
+    monkeypatch.setattr('app.today',lambda:'2027-10-13')
+    assert b'Anita Stores' not in client.get('/service-reminders').data
+    assert b'Anita Stores' in client.get('/service-reminders?stage=upcoming').data
+    monkeypatch.setattr('app.today',lambda:'2027-10-14')
+    assert b'Anita Stores' in client.get('/service-reminders').data
+    assert b'9876543210' in client.get('/service-reminders').data
+    assert b'Service reminders due' in client.get('/').data
+    assert post('/service-reminders',dict(id='1',version='1')).status_code==302
+    assert b'Anita Stores' not in client.get('/service-reminders').data
+    assert b'Anita Stores' in client.get('/service-reminders?stage=completed').data
+    assert backend.database.invoices.find_one({'id':1})['service_completed_at']=='2027-10-14'
+    assert client.post('/service-reminders',data=dict(id='1')).status_code==400
+
+
+def test_service_reminder_dates_exclusions_and_permissions(workspace,monkeypatch):
+    client,post,backend=workspace
+    for day in ['2024-02-29','2024-02-29','2024-02-29']:
+        post('/billing',payload()|dict(date=day))
+    post('/invoices/2/cancel',{})
+    post('/invoices/3/delete',{})
+    monkeypatch.setattr('app.today',lambda:'2025-02-28')
+    html=client.get('/service-reminders').data
+    assert b'2025-02-28' in html
+    assert b'INV/23-24/001' in html and b'INV/23-24/002' not in html and b'INV/23-24/003' not in html
+    post('/service-reminders',dict(id='1',version='99'))
+    assert not backend.database.invoices.find_one({'id':1}).get('service_completed_at')
+    role=backend.database.roles.find_one({'business_id':1,'name':'COMPANY_ADMIN'})
+    backend.database.roles.update_one({'id':role['id']},{'$pull':{'permissions':'invoice.edit'}})
+    assert post('/service-reminders',dict(id='1',version='1')).status_code==403
+    assert client.get('/service-reminders').status_code==200
+    backend.database.roles.update_one({'id':role['id']},{'$pull':{'permissions':'invoice.view'}})
+    assert client.get('/service-reminders').status_code==403
