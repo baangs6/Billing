@@ -452,3 +452,38 @@ def test_payment_edit_permissions_and_tenant_isolation(workspace):
     assert client.get('/payments?edit=1').status_code==404
     assert post('/payments',dict(id='1',version='1',invoice='1',amount='20',date='2026-10-07',method='Cash')).status_code==404
     assert backend.database.payments.find_one({'id':1})['amount']==5000
+
+
+def test_invoice_trash_and_restore(workspace):
+    client,post,backend=workspace
+    post('/billing',payload())
+    assert post('/invoices/1/delete',{}).status_code==302
+    assert values(backend,'inventory','quantity')==[10000]
+    assert backend.database.invoices.find_one({'id':1})['deleted'] is True
+    assert b'INV/26-27/001' not in client.get('/invoices').data
+    assert b'INV/26-27/001' in client.get('/invoices?trash=1').data
+    post('/invoices/1/delete',{})
+    assert values(backend,'inventory','quantity')==[10000]
+    post('/invoices/1/restore',{})
+    assert b'INV/26-27/001' in client.get('/invoices').data
+    assert values(backend,'invoices','status')==['CANCELLED']
+    assert values(backend,'inventory','quantity')==[10000]
+    post('/billing',payload())
+    post('/payments',dict(invoice='2',amount='10',date='2026-10-14',method='Cash'))
+    post('/invoices/2/delete',{})
+    assert not backend.database.invoices.find_one({'id':2}).get('deleted')
+    assert client.post('/invoices/1/delete',data={}).status_code==400
+
+
+def test_invoice_trash_permissions_and_tenant(workspace):
+    client,post,backend=workspace
+    post('/billing',payload())
+    role=backend.database.roles.find_one({'business_id':1,'name':'COMPANY_ADMIN'})
+    backend.database.roles.update_one({'id':role['id']},{'$pull':{'permissions':'invoice.cancel'}})
+    assert post('/invoices/1/delete',{}).status_code==403
+    assert post('/invoices/1/restore',{}).status_code==403
+    post('/logout',{}); client.get('/register')
+    post('/register',dict(name='Other company',email='other-trash@example.com',password='another secure password'))
+    assert post('/invoices/1/delete',{}).status_code==404
+    assert post('/invoices/1/restore',{}).status_code==404
+    assert not backend.database.invoices.find_one({'business_id':1,'id':1}).get('deleted')

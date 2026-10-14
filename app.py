@@ -118,7 +118,7 @@ def create_app(database=None, backend=None):
         return inv
 
     def all_invoices():
-        rows = db().find('invoices',sort=[('date',-1),('id',-1)])
+        rows = db().find('invoices',{'deleted':True} if request.endpoint=='invoices' and request.args.get('trash')=='1' else {'deleted':{'$ne':True}},sort=[('date',-1),('id',-1)])
         receipts={}
         for payment in db().find('payments'): receipts[payment['invoice_id']]=receipts.get(payment['invoice_id'],0)+payment['amount']
         for row in rows:
@@ -623,14 +623,35 @@ def create_app(database=None, backend=None):
 
     @app.post('/invoices/<int:ident>/cancel')
     def cancel(ident):
-        with db():
-            inv=invoice(ident)
-            if inv['received']: raise ValueError('Invoices with payments cannot be cancelled. Record a documented refund through your accountant before cancellation; payment history is preserved.')
-            if inv['status']=='FINAL':
-                for item in inv['items']:
-                    if item['product_id']: move(item['product_id'],item['quantity'],'Invoice cancellation',ident)
-                db().update('invoices',{'id':ident},{'status':'CANCELLED'},inc={'version':1}); audit('cancel','invoice',ident,request.form.get('reason','Cancelled by owner'))
+        cancel_invoice(ident)
         flash('Invoice cancelled; stock restored.'); return redirect(url_for('view_invoice',ident=ident))
+
+    def cancel_invoice(ident):
+        inv=invoice(ident)
+        if inv['received']: raise ValueError('Invoices with payments cannot be cancelled or deleted. Payment history is preserved.')
+        if inv['status']=='FINAL':
+            for item in inv['items']:
+                if item['product_id']: move(item['product_id'],item['quantity'],'Invoice cancellation',ident)
+            db().update('invoices',{'id':ident},{'status':'CANCELLED'},inc={'version':1})
+            audit('cancel','invoice',ident,request.form.get('reason','Cancelled by owner'))
+        return inv
+
+    @app.post('/invoices/<int:ident>/delete')
+    def delete_invoice(ident):
+        cancel_invoice(ident)
+        db().update('invoices',{'id':ident},{'deleted':True},inc={'version':1})
+        audit('trash','invoice',ident)
+        flash('Invoice moved to Trash; stock restored if it was active.')
+        return redirect(url_for('invoices'))
+
+    @app.post('/invoices/<int:ident>/restore')
+    def restore_invoice(ident):
+        inv=invoice(ident)
+        if inv.get('deleted'):
+            db().update('invoices',{'id':ident},{'deleted':False},inc={'version':1})
+            audit('restore','invoice',ident)
+        flash('Invoice restored as cancelled; stock remains available.')
+        return redirect(url_for('view_invoice',ident=ident))
 
     @app.route('/payments',methods=['GET','POST'])
     def payments():
@@ -770,7 +791,7 @@ def create_app(database=None, backend=None):
         return 'Database temporarily unavailable. Please try again shortly.',503
 
     def required_permission(endpoint):
-        return {'finance_page':'finance.view','finance_receipt':'finance.view','proposals':'invoice.view','proposal_form':'invoice.create','view_proposal':'invoice.view','proposal_pdf':'invoice.view','dashboard':'dashboard.view','billing':'invoice.create','invoices':'invoice.view','view_invoice':'invoice.view','invoice_pdf':'invoice.view','cancel':'invoice.cancel','customers':'customer.view','products':'product.view','inventory':'inventory.view','payments':'payment.view','reports':'report.view','settings_page':'settings.manage','company_users':'user.manage','company_roles':'role.manage'}.get(endpoint)
+        return {'finance_page':'finance.view','finance_receipt':'finance.view','proposals':'invoice.view','proposal_form':'invoice.create','view_proposal':'invoice.view','proposal_pdf':'invoice.view','dashboard':'dashboard.view','billing':'invoice.create','invoices':'invoice.view','view_invoice':'invoice.view','invoice_pdf':'invoice.view','delete_invoice':'invoice.cancel','restore_invoice':'invoice.cancel','cancel':'invoice.cancel','customers':'customer.view','products':'product.view','inventory':'inventory.view','payments':'payment.view','reports':'report.view','settings_page':'settings.manage','company_users':'user.manage','company_roles':'role.manage'}.get(endpoint)
 
     def authorize(endpoint):
         policy=access(db(),session['user']); g.access=policy
@@ -892,7 +913,7 @@ def create_app(database=None, backend=None):
     from finance import install_finance
     install_finance(app,db,owned,audit,money,today,payment_rows,pdf_document)
 
-    for endpoint in ('finance_page','finance_receipt','register','billing_customer','billing_product','customers','products','inventory','billing','cancel','payments','settings_page','dashboard','invoices','view_invoice','invoice_pdf','reports','subscription_page','company_users','company_roles','proposals','proposal_form','view_proposal','proposal_pdf'):
+    for endpoint in ('finance_page','finance_receipt','register','billing_customer','billing_product','customers','products','inventory','billing','cancel','delete_invoice','restore_invoice','payments','settings_page','dashboard','invoices','view_invoice','invoice_pdf','reports','subscription_page','company_users','company_roles','proposals','proposal_form','view_proposal','proposal_pdf'):
         app.view_functions[endpoint]=transactional(app.view_functions[endpoint])
 
     from password_recovery import install_recovery
