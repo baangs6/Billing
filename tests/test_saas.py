@@ -363,3 +363,52 @@ def test_owner_reset_rolls_back(owner,workspace,monkeypatch):
     assert backend.database.businesses.count_documents({})==1
     assert backend.database.products.count_documents({})==1
     assert backend.database.users.count_documents({})==1
+
+
+def test_owner_selective_reset(owner,workspace):
+    admin,submit,backend,secret,password=owner
+    fields=dict(action='reset_platform_sections',confirmation='RESET SELECTED ALL COMPANY DATA',password=password,sections=['products'])
+    submit('/settings',fields)
+    assert backend.database.products.count_documents({})==1
+    submit('/settings',fields|dict(sections=['products','inventory']))
+    assert backend.database.products.count_documents({})==0
+    assert backend.database.inventory.count_documents({})==0
+    assert backend.database.customers.count_documents({})==1
+    assert backend.database.businesses.count_documents({})==1
+    assert backend.database.users.count_documents({})==1
+    assert admin.get('/settings').status_code==200
+
+
+def test_selective_finance_reset_scope_security_and_rollback(workspace,monkeypatch):
+    import factory_reset
+    from test_finance import entry
+    client,post,backend=workspace
+    post('/finance',entry())
+    post('/billing',payload()|dict(received='20'))
+    other,bid=register_pending(backend,email='selective-other@example.com')
+    plan=backend.database.plans.find_one({'active':True})
+    Platform(backend).company_action(99,bid,'approve',dict(plan_id=str(plan['id']),trial='1',reason='QA'))
+    with other.session_transaction() as state: csrf=state['csrf']
+    assert other.post('/finance',data=entry()|dict(csrf=csrf)).status_code==302
+    fields=dict(action='reset_sections',confirmation='RESET SELECTED COMPANY DATA',password='wrong',sections=['finance'])
+    post('/settings',fields)
+    assert backend.database.finance_entries.count_documents({})==2
+    fields['password']='correct horse battery staple'
+    original=factory_reset.reset_sections
+    def fail(*args,**kwargs):
+        original(*args,**kwargs)
+        raise ValueError('Simulated failure after selective deletion')
+    monkeypatch.setattr(factory_reset,'reset_sections',fail)
+    post('/settings',fields)
+    assert backend.database.finance_entries.count_documents({})==2
+    monkeypatch.setattr(factory_reset,'reset_sections',original)
+    post('/settings',fields)
+    assert backend.database.finance_entries.count_documents({'business_id':1})==0
+    assert backend.database.finance_entries.count_documents({'business_id':bid})==1
+    assert backend.database.payments.count_documents({})==1
+    assert backend.database.invoices.count_documents({})==1
+    post('/settings',fields|dict(sections=['customers']))
+    assert backend.database.customers.count_documents({'business_id':1})==1
+    role=backend.database.roles.find_one({'business_id':1,'name':'COMPANY_ADMIN'})
+    backend.database.roles.update_one({'id':role['id']},{'$set':{'protected':False}})
+    assert post('/settings',fields).status_code==403

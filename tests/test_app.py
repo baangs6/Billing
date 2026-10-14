@@ -593,3 +593,20 @@ def test_new_invoice_defaults_non_gst(workspace):
     assert values(backend,'invoices','total')==[20000]
     post('/billing',payload())
     assert b'value="GST" selected' in client.get('/billing?edit=2').data
+
+
+def test_selective_reset_dependencies_and_isolation(workspace):
+    client,post,backend=workspace
+    post('/billing',payload()|dict(received='20'))
+    fields=dict(action='reset_sections',confirmation='RESET SELECTED COMPANY DATA',password='correct horse battery staple',sections=['invoices'])
+    post('/settings',fields)
+    assert count(backend,'invoices')==1 and count(backend,'payments')==1
+    post('/settings',fields|dict(sections=['billing','payments','inventory']))
+    assert count(backend,'invoices')==count(backend,'payments')==count(backend,'invoice_items')==0
+    assert count(backend,'products')==count(backend,'customers')==1
+    assert values(backend,'inventory','quantity')==[0]
+    assert count(backend,'users')==1 and count(backend,'subscriptions')==1
+    assert count(backend,'stock_movements')==0
+    post('/settings',fields|dict(sections=['reports']))
+    assert count(backend,'products')==1
+    assert client.post('/settings',data=fields).status_code==400

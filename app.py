@@ -716,12 +716,19 @@ def create_app(database=None, backend=None):
     @app.route('/settings',methods=['GET','POST'])
     def settings_page():
         if request.method=='POST':
-            if request.form.get('action')=='reset_company':
+            if request.form.get('action') in ('reset_company','reset_sections'):
                 from factory_reset import confirm_reset
                 from mongo_store import TENANT_COLLECTIONS
                 user=owned('users',session['user'])
                 role=owned('roles',user['role_id'])
                 if not role.get('protected') or role['name']!='COMPANY_ADMIN': abort(403)
+                if request.form.get('action')=='reset_sections':
+                    from factory_reset import reset_sections
+                    confirm_reset(backend,user,request.form,'RESET SELECTED COMPANY DATA','company')
+                    selected=reset_sections(backend,db().mongo_session,{'business_id':session['business']},request.form.getlist('sections'))
+                    audit('reset_sections','company',session['business'],json.dumps(selected))
+                    flash('Selected company data permanently reset: '+', '.join(selected)+'.')
+                    return redirect(url_for('settings_page'))
                 confirm_reset(backend,user,request.form,'RESET COMPANY','company')
                 bid=session['business']; ms=db().mongo_session
                 for name in TENANT_COLLECTIONS-{'users','subscriptions','roles'}:

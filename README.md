@@ -133,3 +133,9 @@ Both require the signed-in account's current password, exact typed confirmation 
 ## Annual service reminders
 
 Every active invoice automatically appears in Service reminders with a due date one calendar year after its invoice date (29 February becomes 28 February). Existing invoices are included. The dashboard counts due and overdue reminders; Upcoming and Completed lists are available in the sidebar. Customer name and phone come from the invoice snapshot. Users with invoice editing permission can mark a due reminder completed; this is audited and removes it from the due count. Cancelled and trashed invoices are excluded. Completion is a single annual follow-up per invoice, not a recurring annual schedule. Reminders are in-app only; no email, SMS, push notification or background delivery is configured.
+
+### Selective reset
+
+Both Company Settings and Owner System settings include Reset selected sections. Company scope affects only the signed-in company; owner scope affects all companies but retains company accounts, subscriptions and settings. Select Billing (same as Invoices), Proposals, Invoices, Customers, Inventory, Products, Payments, Finance or Reports. Existing full resets remain separate.
+
+The server blocks incomplete selections before deleting anything: Customers require existing Invoices/Proposals; Products require linked Inventory/Invoices/Proposals; Inventory requires stocked Invoices; Invoices require existing Payments, linked Inventory and converted Proposals. Inventory reset clears movements and zeroes retained product balances. Finance clears manual entries and attached receipts; Payments controls invoice collections. Reports are calculated and have no independent reset: reset the appropriate source data. Settings and invoice numbering remain unchanged. Current password, exact typed confirmation, existing lockout, admin-only authorization and atomic rollback apply. No backup or Undo is created.
