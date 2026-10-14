@@ -90,7 +90,7 @@ Anonymous visitors to `/` see the public Ledger home page with customer login, c
 
 ## Proposals / quotations
 
-Open Proposals in the company sidebar, then Create proposal. Select a customer, title, validity date, product or manual-service items, tax treatment, scope and terms. Save a draft or record SENT, ACCEPTED or DECLINED manually. These statuses do not send email or imply electronic acceptance. PDF downloads identify the document as a proposal rather than a tax invoice.
+Open Proposals in the company sidebar, then Create proposal. Select a customer, title, validity date, product or manual-service items, tax treatment, scope and terms. New proposals save as Draft. Change Draft, Sent, Accepted or Declined using Update stage on the Proposals dashboard; editing proposal content preserves its stage. Converted proposals remain locked. These statuses do not send email or imply electronic acceptance. PDF downloads identify the document as a proposal rather than a tax invoice.
 
 Proposals use the same server Decimal/paise calculations and tenant scoping as invoices, with snapshotted customer/company/item details, optimistic edit versions, unique tenant proposal numbers and submission protection. Saving or editing a proposal does not change stock, create payments, or consume the monthly finalized-invoice quota.
 

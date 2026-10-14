@@ -32,7 +32,7 @@ def test_proposal_drafts_snapshots_pdf_and_no_financial_effect(workspace,tmp_pat
 def test_proposal_edit_conversion_is_atomic_and_once(workspace):
     client,post,backend=workspace
     post('/proposals/new',proposal_data())
-    post('/proposals/new',proposal_data(id='1',version='1',status='ACCEPTED'))
+    post('/proposals',dict(id='1',version='1',status='ACCEPTED'))
     post('/proposals/new',proposal_data(id='1',version='1',title='Stale edit'))
     assert backend.database.proposals.find_one({})['title']=='Shop lighting supply'
     conversion=payload(20)|dict(proposal_id='1',proposal_version='2')
@@ -43,6 +43,8 @@ def test_proposal_edit_conversion_is_atomic_and_once(workspace):
     post('/billing',conversion)
     assert backend.database.proposals.find_one({})['status']=='CONVERTED'
     assert backend.database.proposals.find_one({})['invoice_id']==1
+    post('/proposals',dict(id='1',version='3',status='DRAFT'))
+    assert backend.database.proposals.find_one({})['status']=='CONVERTED'
     assert backend.database.inventory.find_one({})['quantity']==8000
     post('/billing',payload()|dict(proposal_id='1',proposal_version='2'))
     assert backend.database.invoices.count_documents({})==1
@@ -57,11 +59,14 @@ def test_proposal_validation_decline_expiry_and_tenant_isolation(workspace):
     assert backend.database.proposals.count_documents({})==0
     wrong=json.loads(payload()['items']);wrong[0]['product_id']=987654
     assert post('/proposals/new',proposal_data(items=json.dumps(wrong))).status_code==404
-    post('/proposals/new',proposal_data(status='DECLINED'))
-    post('/billing',payload()|dict(proposal_id='1',proposal_version='1'))
-    assert backend.database.invoices.count_documents({})==0
-    post('/proposals/new',proposal_data(id='1',version='1',status='SENT',date='2025-01-01',valid_until='2025-01-10'))
+    post('/proposals/new',proposal_data())
+    post('/proposals',dict(id='1',version='1',status='DECLINED'))
     post('/billing',payload()|dict(proposal_id='1',proposal_version='2'))
+    assert backend.database.invoices.count_documents({})==0
+    post('/proposals',dict(id='1',version='2',status='SENT'))
+    post('/proposals/new',proposal_data(id='1',version='3',date='2025-01-01',valid_until='2025-01-10'))
+    assert backend.database.proposals.find_one({})['status']=='SENT'
+    post('/billing',payload()|dict(proposal_id='1',proposal_version='4'))
     assert backend.database.invoices.count_documents({})==0
     assert backend.scope(987654).find('proposals')==[]
     assert backend.scope(987654).one('proposals',{'id':1}) is None
@@ -83,3 +88,24 @@ def test_proposal_quotas_features_and_role_enforcement(workspace):
     store.run_transaction(lambda:store.update('users',{'id':1},{'role_id':role['id']}))
     assert client.get('/proposals').status_code==403
     assert post('/proposals/new',proposal_data(type='NON-GST')).status_code==403
+
+
+def test_proposal_stages_only_on_dashboard(workspace):
+    client,post,backend=workspace
+    post('/proposals/new',proposal_data(status='ACCEPTED'))
+    assert backend.database.proposals.find_one({})['status']=='DRAFT'
+    assert b'name="status"' not in client.get('/proposals/new').data
+    assert b'name="status"' not in client.get('/proposals/new?edit=1').data
+    stage=dict(id='1',version='1',status='SENT')
+    assert post('/proposals',stage).status_code==302
+    assert backend.database.proposals.find_one({})['status']=='SENT'
+    post('/proposals',stage|dict(status='ACCEPTED'))
+    assert backend.database.proposals.find_one({})['status']=='SENT'
+    post('/proposals',stage|dict(version='2',status='CONVERTED'))
+    assert backend.database.proposals.find_one({})['status']=='SENT'
+    post('/proposals/new',proposal_data(id='1',version='2',status='DECLINED'))
+    assert backend.database.proposals.find_one({})['status']=='SENT'
+    assert client.post('/proposals',data=stage).status_code==400
+    role=backend.database.roles.find_one({'business_id':1,'name':'COMPANY_ADMIN'})
+    backend.database.roles.update_one({'id':role['id']},{'$pull':{'permissions':'invoice.edit'}})
+    assert post('/proposals',stage|dict(version='3')).status_code==403

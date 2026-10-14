@@ -469,8 +469,17 @@ def create_app(database=None, backend=None):
         movements=movement_rows(limit=200)
         return render_template('inventory.html',title='Inventory',rows=product_rows(),movements=movements)
 
-    @app.get('/proposals')
+    @app.route('/proposals',methods=['GET','POST'])
     def proposals():
+        if request.method=='POST':
+            proposal=owned('proposals',request.form.get('id'))
+            if proposal.get('invoice_id') or proposal['status']=='CONVERTED': raise ValueError('Converted proposals are locked.')
+            if str(proposal['version'])!=request.form.get('version'): raise ValueError('Proposal changed in another window. Reload before changing its stage.')
+            stage=request.form.get('status')
+            if stage not in ('DRAFT','SENT','ACCEPTED','DECLINED'): raise ValueError('Choose a valid proposal stage.')
+            db().update('proposals',{'id':proposal['id']},{'status':stage},inc={'version':1})
+            audit('stage','proposal',proposal['id'],json.dumps(dict(previous=proposal['status'],current=stage)))
+            flash('Proposal stage updated.'); return redirect(url_for('proposals'))
         rows=db().find('proposals',sort=[('id',-1)])
         query=request.args.get('q','').strip().lower(); status=request.args.get('status','')
         rows=[row for row in rows if query in (row['number']+' '+row['title']+' '+row['snapshot']['customer']['name']).lower() and (not status or row['status']==status)]
@@ -492,7 +501,7 @@ def create_app(database=None, backend=None):
             if date.fromisoformat(until)<date.fromisoformat(day): raise ValueError('Validity date must be on or after the proposal date.')
             customer=owned('customers',request.form.get('customer'))
             if customer['archived']: raise ValueError('Choose an active customer.')
-            business=settings(); kind=request.form.get('type','NON-GST'); status=request.form.get('status','DRAFT')
+            business=settings(); kind=request.form.get('type','NON-GST'); status=old['status'] if old else 'DRAFT'
             if kind not in ('GST','NON-GST') or status not in ('DRAFT','SENT','ACCEPTED','DECLINED'): raise ValueError('Invalid proposal type or status.')
             if kind=='GST' and (not business['gstin'] or not business['state'] or not customer['data']['state']): raise ValueError('GST proposals require business GSTIN and business/customer states.')
             raw=json.loads(request.form.get('items','[]'))
@@ -828,6 +837,7 @@ def create_app(database=None, backend=None):
         if endpoint=='billing_product': permission='product.manage'
         if endpoint=='finance_page' and request.method=='POST': permission='finance.manage'
         if request.method=='POST':
+            if endpoint=='proposals': permission='invoice.edit'
             permission={'customers':'customer.manage','products':'product.manage','inventory':'inventory.adjust','payments':'payment.record'}.get(endpoint,permission)
         if endpoint=='billing' and (request.form.get('id') or request.args.get('edit')): permission='invoice.edit'
         if endpoint=='proposal_form' and (request.form.get('id') or request.args.get('edit')): permission='invoice.edit'
