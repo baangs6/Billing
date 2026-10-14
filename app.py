@@ -580,7 +580,7 @@ def create_app(database=None, backend=None):
                 customer=owned('customers',request.form['customer'])
                 if customer['archived']: raise ValueError('Choose an active customer.')
                 customer['data']=dict(customer['data']); business=settings()
-                kind=request.form.get('type','GST')
+                kind=request.form.get('type','NON-GST')
                 if kind not in ('GST','NON-GST'): raise ValueError('Invalid invoice type.')
                 day=request.form.get('date'); date.fromisoformat(day)
                 if kind=='GST' and (not business['gstin'] or not business['state'] or not customer['data']['state']): raise ValueError('GST invoices require business GSTIN and business/customer states.')
@@ -872,7 +872,7 @@ def create_app(database=None, backend=None):
             if 'report.export' not in policy['permissions']: abort(403)
             if request.args['export']=='pdf' and not policy['features'].get('pdf'): abort(403)
         if endpoint=='billing' and request.method=='POST':
-            if request.form.get('type','GST')=='GST' and not policy['features'].get('gst'): raise ValueError('GST billing is disabled by your subscription plan.')
+            if request.form.get('type','NON-GST')=='GST' and not policy['features'].get('gst'): raise ValueError('GST billing is disabled by your subscription plan.')
             if not request.form.get('id'):
                 existing=db().one('invoice_submissions',{'token':request.form.get('submission','')})
                 source=owned('proposals',request.form['proposal_id']) if request.form.get('proposal_id') else None

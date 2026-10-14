@@ -582,3 +582,14 @@ def test_service_reminder_dates_exclusions_and_permissions(workspace,monkeypatch
     assert client.get('/service-reminders').status_code==200
     backend.database.roles.update_one({'id':role['id']},{'$pull':{'permissions':'invoice.view'}})
     assert client.get('/service-reminders').status_code==403
+
+
+def test_new_invoice_defaults_non_gst(workspace):
+    client,post,backend=workspace
+    assert b'value="NON-GST" selected' in client.get('/billing').data
+    data=payload(); data.pop('type')
+    post('/billing',data)
+    assert values(backend,'invoices','type')==['NON-GST']
+    assert values(backend,'invoices','total')==[20000]
+    post('/billing',payload())
+    assert b'value="GST" selected' in client.get('/billing?edit=2').data
