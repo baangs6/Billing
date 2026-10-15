@@ -398,10 +398,14 @@ def create_app(database=None, backend=None):
                 writer.writerow([r['id'], r['name'], r['data'].get('phone',''), r['data'].get('email',''), r['data'].get('address',''), r['data'].get('state',''), r['data'].get('pin',''), r['data'].get('gstin',''), f"{r['balance']/100:.2f}", r['data'].get('notes','')])
             return Response(output.getvalue(), mimetype='text/csv', headers={'Content-Disposition': 'attachment; filename="customers.csv"'})
         edit=owned('customers',request.args['edit']) if request.args.get('edit') else None
-        if edit: edit['data']=dict(edit['data'])
+        if edit:
+            edit['data']=dict(edit['data'])
+            edit['balance']=balances.get(edit['id'], balances.get(str(edit['id']), 0))
         history=[i for i in all_invoices() if str(i['customer_id'])==request.args.get('view')] if request.args.get('view') else []
         profile=owned('customers',request.args['view']) if request.args.get('view') else None
-        if profile: profile['data']=dict(profile['data'])
+        if profile:
+            profile['data']=dict(profile['data'])
+            profile['balance']=balances.get(profile['id'], balances.get(str(profile['id']), 0))
         history_inv_ids = {inv['id'] for inv in history}
         cust_payments = [p for p in db().find('payments',sort=[('date',-1)]) if p.get('invoice_id') in history_inv_ids] if history else []
         cust_proposals = [p for p in db().find('proposals',{'customer_id':profile['id'],'deleted':{'$ne':True}},sort=[('created_at',-1)])] if profile else []

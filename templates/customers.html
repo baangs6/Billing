@@ -398,7 +398,8 @@
 
   <!-- 3 Profile KPI Cards -->
   {% set total_billed = history|sum(attribute='total') %}
-  {% set total_realized = total_billed - profile.balance %}
+  {% set cust_bal = profile.balance if (profile is defined and profile and profile.balance is defined) else 0 %}
+  {% set total_realized = total_billed - cust_bal %}
   {% set cleared_pct = ((total_realized / (total_billed or 1)) * 100)|round|int if total_billed > 0 else 100 %}
 
   <div class="stitch-kpi-grid" style="margin-bottom: 24px;">
@@ -438,7 +439,7 @@
     <div class="stitch-kpi-card">
       <div class="stitch-kpi-top">
         <span>OUTSTANDING BALANCE</span>
-        {% if profile.balance > 0 %}
+        {% if cust_bal > 0 %}
           <span style="display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 9999px; background: #fef2f2; color: #dc2626; font-size: 11px; font-weight: 600;">
             <span style="width: 5px; height: 5px; border-radius: 50%; background: #dc2626;"></span> Pending
           </span>
@@ -449,11 +450,11 @@
         {% endif %}
       </div>
       <div>
-        <div class="stitch-kpi-val" style="color: {{ '#dc2626' if profile.balance > 0 else '#16a34a' }};">
-          {{ profile.balance|inr }}
+        <div class="stitch-kpi-val" style="color: {{ '#dc2626' if cust_bal > 0 else '#16a34a' }};">
+          {{ cust_bal|inr }}
         </div>
         <div class="stitch-kpi-sub">
-          <span>{{ 'Payment due across active invoices' if profile.balance > 0 else 'All balances fully cleared' }}</span>
+          <span>{{ 'Payment due across active invoices' if cust_bal > 0 else 'All balances fully cleared' }}</span>
         </div>
       </div>
     </div>
@@ -687,7 +688,7 @@
         </div>
         <div style="display: grid; grid-cols: 1; gap: 8px;">
           {% if profile.data.phone %}
-            <a href="https://wa.me/{{ profile.data.phone|replace(' ','')|replace('+','') }}?text=Hello%20{{ profile.name|urlencode }},%20your%20current%20balance%20with%20us%20is%20{{ profile.balance|inr|urlencode }}." target="_blank" rel="noopener" style="display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; border-radius: 10px; background: #f0fdf4; border: 1px solid #bbf7d0; color: #15803d; text-decoration: none; font-size: 12.5px; font-weight: 600;">
+            <a href="https://wa.me/{{ profile.data.phone|replace(' ','')|replace('+','') }}?text=Hello%20{{ profile.name|urlencode }},%20your%20current%20balance%20with%20us%20is%20{{ cust_bal|inr|urlencode }}." target="_blank" rel="noopener" style="display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; border-radius: 10px; background: #f0fdf4; border: 1px solid #bbf7d0; color: #15803d; text-decoration: none; font-size: 12.5px; font-weight: 600;">
               <span style="display: flex; items-center; gap: 8px;">
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
                 WhatsApp Statement Reminder
