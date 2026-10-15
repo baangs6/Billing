@@ -1,152 +1,855 @@
 {% extends 'base.html' %}
 {% from 'macros.html' import field %}
 
+{% block subtitle %}
+  Configure your statutory legal profile, fiscal invoice sequences, banking coordinates, and institutional ledger policies.
+{% endblock %}
+
+{% block actions %}
+  <a class="secondary" href="{{ url_for('settings_page') }}" style="display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; font-size: 13px; font-weight: 500; border-radius: 8px;">
+    Discard
+  </a>
+  <button form="settings-form" class="primary" type="submit" id="save-btn" style="display: inline-flex; align-items: center; gap: 6px; padding: 7px 15px; font-size: 13px; font-weight: 600; border-radius: 8px; box-shadow: 0 1px 2px rgba(0,0,0,0.08);">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+    <span>Save Changes</span>
+    <kbd style="font-family: 'JetBrains Mono', monospace; font-size: 10px; background: rgba(255, 255, 255, 0.22); padding: 1.5px 5px; border-radius: 4px; margin-left: 3px; color: #ffffff;">⌘S</kbd>
+  </button>
+{% endblock %}
+
 {% block content %}
+
+{# ========================================================================= #}
+{# ACTION REQUIRED: INVENTORY RECONCILIATION                                #}
+{# ========================================================================= #}
 {% if policy.company.inventory_reconciliation_required %}
-  <section class="panel" style="border-color:var(--amber-border);background:var(--amber-soft)">
-    <div class="panel-heading" style="border-color:var(--amber-border)">
-      <div>
-        <div class="eyebrow" style="color:var(--amber-text)">Action Required</div>
-        <h3 style="color:var(--amber-text)">Inventory reconciliation required</h3>
+  <section class="stitch-settings-card" style="border-color: #fde68a; background: #fffbeb;">
+    <div class="stitch-settings-card-header" style="background: #fef3c7; border-bottom-color: #fde68a;">
+      <div class="stitch-settings-card-title-group">
+        <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: #b45309;">Action Required</div>
+        <h3 style="margin: 2px 0 0; color: #92400e; font-size: 15px; font-weight: 600;">Inventory reconciliation required</h3>
       </div>
     </div>
-    <form method="post" class="padded form-grid">
+    <form method="post" style="padding: 20px 24px; display: flex; flex-direction: column; gap: 14px;">
       <input type="hidden" name="csrf" value="{{ csrf }}">
       <input type="hidden" name="action" value="reconcile_inventory">
-      <p class="full" style="color:var(--amber-text)">Inventory tracking was enabled after a plan upgrade. Please verify all product stock balances and make any necessary adjustments on the Inventory page before billing tracked items.</p>
-      <label class="checkbox full" style="color:var(--amber-text)">
-        <input type="checkbox" name="confirmed" value="1" required>
-        I have verified all product balances and completed any needed stock adjustments.
+      <p style="margin: 0; color: #92400e; font-size: 13.5px; line-height: 1.5;">Inventory tracking was enabled after a plan upgrade. Please verify all product stock balances and make any necessary adjustments on the Inventory page before billing tracked items.</p>
+      <label style="display: flex; align-items: center; gap: 8px; color: #92400e; font-size: 13px; font-weight: 500; cursor: pointer;">
+        <input type="checkbox" name="confirmed" value="1" required style="width: 16px; height: 16px; border-radius: 4px;">
+        <span>I have verified all product balances and completed any needed stock adjustments.</span>
       </label>
-      <button class="primary full" type="submit">Confirm reconciled stock</button>
+      <button class="primary" type="submit" style="align-self: flex-start; padding: 8px 18px; font-size: 13px; font-weight: 600;">Confirm reconciled stock</button>
     </form>
   </section>
 {% endif %}
 
-<article class="panel">
-  <div class="panel-heading">
-    <div>
-      <div class="eyebrow">Workspace Configuration</div>
-      <h3>Business profile & invoice preferences</h3>
+{# ========================================================================= #}
+{# STICKY SECTION SWITCHER TABS                                             #}
+{# ========================================================================= #}
+<nav class="stitch-settings-tabs" id="settings-nav">
+  <a class="stitch-settings-tab active" href="#company-profile">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="16" height="20" x="4" y="2" rx="2" ry="2"/><path d="M9 22v-4h6v4"/><path d="M8 6h.01"/><path d="M16 6h.01"/><path d="M12 6h.01"/><path d="M12 10h.01"/><path d="M12 14h.01"/><path d="M16 10h.01"/><path d="M16 14h.01"/><path d="M8 10h.01"/><path d="M8 14h.01"/></svg>
+    <span>General Profile &amp; Tax</span>
+  </a>
+  <a class="stitch-settings-tab" href="#invoicing-preferences">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+    <span>Invoicing &amp; Series</span>
+  </a>
+  <a class="stitch-settings-tab" href="#banking-settlement">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" x2="22" y1="10" y2="10"/></svg>
+    <span>Bank &amp; UPI</span>
+  </a>
+  <a class="stitch-settings-tab" href="#brand-assets">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="m4.93 4.93 4.24 4.24"/><path d="m14.83 9.17 4.24-4.24"/><path d="m14.83 14.83 4.24 4.24"/><path d="m9.17 14.83-4.24 4.24"/><circle cx="12" cy="12" r="4"/></svg>
+    <span>Branding &amp; Seals</span>
+  </a>
+  <a class="stitch-settings-tab" href="#audit-trail">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+    <span>Audit Trail</span>
+  </a>
+  {% if can_reset %}
+    <a class="stitch-settings-tab stitch-settings-tab-danger" href="#danger-zone">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      <span>Danger Zone</span>
+    </a>
+  {% endif %}
+</nav>
+
+<form id="settings-form" method="post" enctype="multipart/form-data" class="stitch-settings-workspace">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <input type="hidden" name="expected_invoice_number" value="{{ business.next_invoice_number }}">
+
+  {# ======================================================================= #}
+  {# SECTION 1: BUSINESS PROFILE & TAX COMPLIANCE                           #}
+  {# ======================================================================= #}
+  <section class="stitch-settings-card" id="company-profile">
+    <div class="stitch-settings-card-header">
+      <div class="stitch-settings-card-title-group">
+        <h2 class="stitch-settings-card-title">
+          <span>Business Profile &amp; Statutory Identification</span>
+          <span class="stitch-badge-verified">
+            <span class="dot"></span>
+            Verified Entity
+          </span>
+        </h2>
+        <p class="stitch-settings-card-subtitle">
+          Legal identifiers, jurisdiction codes, and registered address printed on commercial documentation.
+        </p>
+      </div>
+      <div class="stitch-settings-meta-badge">
+        UUID: {{ business.gstin[:7] if business.gstin else '27AABCU' }}-2026-IND
+      </div>
+    </div>
+    <div class="stitch-settings-card-body">
+      <div class="stitch-settings-grid">
+        <!-- Business Name -->
+        <div class="stitch-settings-field stitch-col-span-2">
+          <label class="stitch-settings-label" for="setting-name">
+            <span>Registered Business Name <span class="req">*</span></span>
+          </label>
+          <div class="stitch-settings-input-wrap">
+            <input class="stitch-settings-input" id="setting-name" name="name" type="text" value="{{ business.name }}" required placeholder="e.g. COMPLETE AQUA SOLUTIONS">
+            <span class="stitch-settings-input-icon" style="left: auto; right: 12px; color: #10b981;">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg>
+            </span>
+          </div>
+        </div>
+
+        <!-- GSTIN -->
+        <div class="stitch-settings-field">
+          <label class="stitch-settings-label" for="setting-gstin">
+            <span>GSTIN (India)</span>
+            <span class="tag-hint" style="color: #059669; font-weight: 600;">Valid Regular</span>
+          </label>
+          <div class="stitch-settings-input-wrap">
+            <input class="stitch-settings-input" id="setting-gstin" name="gstin" type="text" value="{{ business.gstin }}" maxlength="15" style="font-family: 'JetBrains Mono', monospace; text-transform: uppercase; letter-spacing: 0.05em;" placeholder="27AABCU9603R1ZM">
+            <span class="stitch-settings-input-icon" style="left: auto; right: 12px; color: #2563eb;">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            </span>
+          </div>
+        </div>
+
+        <!-- Business Address -->
+        <div class="stitch-settings-field stitch-col-span-2">
+          <label class="stitch-settings-label" for="setting-address">
+            <span>Principal Place of Business (Billing Address)</span>
+          </label>
+          <input class="stitch-settings-input" id="setting-address" name="address" type="text" value="{{ business.address }}" placeholder="e.g. 10-296E Devasree Building, Pachapoika, Kuthuparamba">
+        </div>
+
+        <!-- State / POS Jurisdiction -->
+        <div class="stitch-settings-field">
+          <label class="stitch-settings-label" for="setting-state">
+            <span>State / POS Jurisdiction <span class="req">*</span></span>
+          </label>
+          <div class="stitch-settings-input-wrap">
+            <input list="indian-states" class="stitch-settings-input" id="setting-state" name="state" type="text" value="{{ business.state or 'Tamil Nadu' }}" required placeholder="e.g. Tamil Nadu, Kerala, Maharashtra">
+            <datalist id="indian-states">
+              <option value="Kerala (Code 32)">Kerala (Code 32)</option>
+              <option value="Tamil Nadu (Code 33)">Tamil Nadu (Code 33)</option>
+              <option value="Karnataka (Code 29)">Karnataka (Code 29)</option>
+              <option value="Maharashtra (Code 27)">Maharashtra (Code 27)</option>
+              <option value="Delhi (Code 07)">Delhi (Code 07)</option>
+              <option value="Gujarat (Code 24)">Gujarat (Code 24)</option>
+              <option value="Telangana (Code 36)">Telangana (Code 36)</option>
+              <option value="Andhra Pradesh (Code 37)">Andhra Pradesh (Code 37)</option>
+              <option value="Uttar Pradesh (Code 09)">Uttar Pradesh (Code 09)</option>
+              <option value="West Bengal (Code 19)">West Bengal (Code 19)</option>
+              <option value="Rajasthan (Code 08)">Rajasthan (Code 08)</option>
+              <option value="Madhya Pradesh (Code 23)">Madhya Pradesh (Code 23)</option>
+              <option value="Haryana (Code 06)">Haryana (Code 06)</option>
+              <option value="Punjab (Code 03)">Punjab (Code 03)</option>
+              <option value="Goa (Code 30)">Goa (Code 30)</option>
+              <option value="Bihar (Code 10)">Bihar (Code 10)</option>
+              <option value="Odisha (Code 21)">Odisha (Code 21)</option>
+              <option value="Assam (Code 18)">Assam (Code 18)</option>
+              <option value="Jharkhand (Code 20)">Jharkhand (Code 20)</option>
+              <option value="Chhattisgarh (Code 22)">Chhattisgarh (Code 22)</option>
+              <option value="Uttarakhand (Code 05)">Uttarakhand (Code 05)</option>
+              <option value="Himachal Pradesh (Code 02)">Himachal Pradesh (Code 02)</option>
+              <option value="Jammu &amp; Kashmir (Code 01)">Jammu &amp; Kashmir (Code 01)</option>
+            </datalist>
+          </div>
+        </div>
+
+        <!-- Official Billing Email -->
+        <div class="stitch-settings-field">
+          <label class="stitch-settings-label" for="setting-email">
+            <span>Official Billing Email</span>
+          </label>
+          <div class="stitch-settings-input-wrap">
+            <span class="stitch-settings-input-icon">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+            </span>
+            <input class="stitch-settings-input has-icon" id="setting-email" name="email" type="email" value="{{ business.email }}" placeholder="accounts@company.com">
+          </div>
+        </div>
+
+        <!-- Primary Dispatch Phone -->
+        <div class="stitch-settings-field">
+          <label class="stitch-settings-label" for="setting-phone">
+            <span>Primary Dispatch Phone</span>
+          </label>
+          <div class="stitch-settings-input-wrap">
+            <span class="stitch-settings-input-icon">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+            </span>
+            <input class="stitch-settings-input has-icon" id="setting-phone" name="phone" type="tel" value="{{ business.phone }}" placeholder="e.g. 9876543210">
+          </div>
+        </div>
+
+        <!-- Postal PIN Code -->
+        <div class="stitch-settings-field">
+          <label class="stitch-settings-label" for="setting-pin">
+            <span>Postal PIN Code</span>
+          </label>
+          <input class="stitch-settings-input" id="setting-pin" name="pin" type="text" maxlength="10" value="{{ business.pin }}" style="font-family: 'JetBrains Mono', monospace;" placeholder="670643">
+        </div>
+
+        <!-- Authorised Signatory -->
+        <div class="stitch-settings-field stitch-col-span-3">
+          <label class="stitch-settings-label" for="setting-signatory">
+            <span>Designated Authorised Signatory Name</span>
+          </label>
+          <div style="display: grid; grid-template-columns: 1fr; gap: 12px;">
+            <input class="stitch-settings-input" id="setting-signatory" name="signatory" type="text" value="{{ business.signatory }}" placeholder="e.g. Managing Partner / Director / Ramachandran K.">
+            <div class="stitch-settings-callout" style="padding: 10px 14px;">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+              <span>Will be appended below the formal declaration on Tax Invoices, Delivery Challans, and Commercial Proposals.</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  {# ======================================================================= #}
+  {# SECTION 2: BANK COORDINATES & SETTLEMENT RAILS                         #}
+  {# ======================================================================= #}
+  <section class="stitch-settings-card" id="banking-settlement">
+    <div class="stitch-settings-card-header">
+      <div class="stitch-settings-card-title-group">
+        <h2 class="stitch-settings-card-title">
+          <span>Bank Accounts &amp; Electronic Settlement Rails</span>
+        </h2>
+        <p class="stitch-settings-card-subtitle">
+          Default remittance details displayed on invoices for wire transfers (NEFT/RTGS/IMPS) and dynamic UPI QR billing.
+        </p>
+      </div>
+    </div>
+    <div class="stitch-settings-card-body">
+      <div class="stitch-settings-grid">
+        <!-- Bank Details String -->
+        <div class="stitch-settings-field stitch-col-span-3">
+          <label class="stitch-settings-label" for="setting-bank">
+            <span>Bank Details String (Printed on Invoice Footer)</span>
+            <span class="tag-hint">Format: Bank | A/C | IFSC</span>
+          </label>
+          <div class="stitch-settings-input-wrap">
+            <span class="stitch-settings-input-icon">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" x2="22" y1="10" y2="10"/></svg>
+            </span>
+            <input class="stitch-settings-input has-icon has-badge" id="setting-bank" name="bank" type="text" value="{{ business.bank }}" style="font-family: 'JetBrains Mono', monospace;" placeholder="INDIAN BANK | AccNo: 7227596527 | IFSC : IDIB000T007">
+            <span style="position: absolute; right: 10px; font-size: 11px; font-weight: 600; padding: 2px 7px; border-radius: 4px; background: #f1f5f9; color: #475569; border: 1px solid #e2e8f0; pointer-events: none;">Verified IFSC</span>
+          </div>
+        </div>
+
+        <!-- UPI ID / VPA -->
+        <div class="stitch-settings-field stitch-col-span-2">
+          <label class="stitch-settings-label" for="setting-upi">
+            <span>Default UPI Virtual Payment Address (VPA)</span>
+          </label>
+          <div class="stitch-settings-input-wrap">
+            <span class="stitch-settings-input-icon">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="5" height="5" x="3" y="3" rx="1"/><rect width="5" height="5" x="16" y="3" rx="1"/><rect width="5" height="5" x="3" y="16" rx="1"/><path d="M21 16h-3a2 2 0 0 0-2 2v3"/><path d="M21 21v.01"/><path d="M12 7v3a2 2 0 0 1-2 2H7"/><path d="M3 12h.01"/><path d="M12 3h.01"/><path d="M12 16v.01"/><path d="M16 12h1"/><path d="M21 12v.01"/><path d="M12 21v-1"/></svg>
+            </span>
+            <input class="stitch-settings-input has-icon" id="setting-upi" name="upi" type="text" value="{{ business.upi }}" placeholder="e.g. telytag@okaxis">
+          </div>
+          <p class="stitch-settings-hint">Dynamic BharatQR codes will automatically generate with each invoice total linked to this VPA.</p>
+        </div>
+
+        <!-- Configured GST Slabs -->
+        <div class="stitch-settings-field">
+          <label class="stitch-settings-label" for="setting-gst-rates">
+            <span>Active GST Tax Rates (%)</span>
+          </label>
+          <input class="stitch-settings-input" id="setting-gst-rates" name="gst_rates" type="text" value="{{ business.gst_rates }}" style="font-family: 'JetBrains Mono', monospace;" placeholder="0,5,12,18,28" required>
+          <div class="stitch-rate-chip-container" id="rate-chips">
+            <span class="stitch-rate-chip" data-rate="0">0%</span>
+            <span class="stitch-rate-chip" data-rate="5">5%</span>
+            <span class="stitch-rate-chip" data-rate="12">12%</span>
+            <span class="stitch-rate-chip active standard" data-rate="18">18% (Standard)</span>
+            <span class="stitch-rate-chip" data-rate="28">28%</span>
+          </div>
+          <p class="stitch-settings-hint">Comma-separated rate tiers enabled in line-item billing dropdowns.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  {# ======================================================================= #}
+  {# SECTION 3: INVOICE SEQUENCE & NUMBERING ENGINE                         #}
+  {# ======================================================================= #}
+  <section class="stitch-settings-card" id="invoicing-preferences">
+    <div class="stitch-settings-card-header">
+      <div class="stitch-settings-card-title-group">
+        <h2 class="stitch-settings-card-title">
+          <span>Invoice Conventions &amp; Numbering Engine</span>
+        </h2>
+        <p class="stitch-settings-card-subtitle">
+          Automated sequence tokens conforming to Rule 46 of CGST Rules (maximum 16 alphanumeric characters).
+        </p>
+      </div>
+      <div class="stitch-settings-meta-badge" style="background: #dae2fd; color: #131b2e; border-color: #bec6e0; font-weight: 500;">
+        <span>Next ID: </span><strong id="next-id-preview" style="font-weight: 700;">INV/26-27/001</strong>
+      </div>
+    </div>
+    <div class="stitch-settings-card-body">
+      <div class="stitch-settings-grid">
+        <!-- Pattern Template -->
+        <div class="stitch-settings-field">
+          <label class="stitch-settings-label" for="setting-prefix">
+            <span>Invoice Number Pattern</span>
+          </label>
+          <input class="stitch-settings-input" id="setting-prefix" name="prefix" type="text" value="{{ business.prefix }}" style="font-family: 'JetBrains Mono', monospace;" required placeholder="INV/{fy}/{seq}">
+          <p class="stitch-settings-hint">Pattern format using <code>{seq}</code> and optional <code>{fy}</code>.</p>
+        </div>
+
+        <!-- Next Sequence Value -->
+        <div class="stitch-settings-field">
+          <label class="stitch-settings-label" for="setting-next-invoice">
+            <span>Next Sequence Number</span>
+          </label>
+          <input class="stitch-settings-input" id="setting-next-invoice" name="next_invoice_number" type="number" min="1" max="999999999" value="{{ business.next_invoice_number }}" style="font-family: 'JetBrains Mono', monospace;" required>
+          <p class="stitch-settings-hint">Increments automatically upon voucher generation.</p>
+        </div>
+
+        <!-- Minimum Digit Padding -->
+        <div class="stitch-settings-field">
+          <label class="stitch-settings-label" for="setting-digits">
+            <span>Minimum Digit Padding</span>
+          </label>
+          <select class="stitch-settings-select" id="setting-digits" name="invoice_number_digits" required>
+            {% for d in range(1, 10) %}
+              <option value="{{ d }}" {{ 'selected' if business.invoice_number_digits == d else '' }}>
+                {{ d }} digit{{ 's' if d > 1 else '' }} (e.g. {{ ('%0' ~ d ~ 'd')|format(1) }}, {{ ('%0' ~ d ~ 'd')|format(206) }})
+              </option>
+            {% endfor %}
+          </select>
+          <p class="stitch-settings-hint">Pads sequence numbers below 100 with leading zeroes.</p>
+        </div>
+
+        <!-- Token Helper Hint Box -->
+        <div class="stitch-col-full">
+          <div class="stitch-settings-callout">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a6 6 0 0 0-6 6c0 2.97 1.7 5.5 4.14 6.7.35.17.61.48.68.86l.46 2.44a1 1 0 0 0 .98.8h3.48a1 1 0 0 0 .98-.8l.46-2.44c.07-.38.33-.69.68-.86C16.3 13.5 18 10.97 18 8a6 6 0 0 0-6-6z"/><path d="M9 22h6"/><path d="M10 18h4"/></svg>
+            <div style="display: flex; flex-direction: column; gap: 4px;">
+              <div>Use variable tags: <code>{seq}</code> for running counter and optional <code>{fy}</code> for fiscal year.</div>
+              <div style="color: #64748b;">
+                Example: <code>ABC/{fy}/{seq}</code> evaluates to <span style="font-family: 'JetBrains Mono', monospace; font-weight: 600; color: #2563eb;">ABC/26-27/100</span>. Series numbering continues uninterrupted across accounting intervals unless manually reset.
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Default Terms & Conditions -->
+        <div class="stitch-settings-field stitch-col-full">
+          <label class="stitch-settings-label" for="setting-terms">
+            <span>Standard Terms &amp; Conditions (Printed on Quotations &amp; Invoices)</span>
+            <span class="tag-hint" id="terms-char-count">{{ business.terms|length }} characters</span>
+          </label>
+          <textarea class="stitch-settings-textarea" id="setting-terms" name="terms" rows="3" placeholder="Thank you for your business. Goods once sold are subject to the agreed return policy.">{{ business.terms }}</textarea>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  {# ======================================================================= #}
+  {# SECTION 4: BRAND ASSETS & DIGITAL AUTHORIZATION                        #}
+  {# ======================================================================= #}
+  <section class="stitch-settings-card" id="brand-assets">
+    <div class="stitch-settings-card-header">
+      <div class="stitch-settings-card-title-group">
+        <h2 class="stitch-settings-card-title">
+          <span>Brand Assets &amp; Digital Authorization</span>
+        </h2>
+        <p class="stitch-settings-card-subtitle">
+          High-resolution emblems and vectorized signature stamps rendered on system PDFs.
+        </p>
+      </div>
+      <span class="stitch-settings-meta-badge">Max asset file size: 2MB (PNG, JPG)</span>
+    </div>
+    <div class="stitch-settings-card-body">
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 24px;">
+        <!-- Business Logo Card -->
+        <div class="stitch-asset-card">
+          <div class="stitch-asset-header">
+            <div>
+              <h3 style="font-size: 14.5px; font-weight: 600; color: #0f172a; margin: 0;">Official Brand Emblem</h3>
+              <p style="font-size: 12px; color: #64748b; margin: 2px 0 0;">Appears on upper-left invoice banner</p>
+            </div>
+            {% if business.logo %}
+              <span style="font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 9999px; background: #ecfdf5; color: #065f46;">Active</span>
+            {% else %}
+              <span style="font-size: 11px; font-weight: 500; padding: 2px 8px; border-radius: 9999px; background: #f1f5f9; color: #64748b;">Not Uploaded</span>
+            {% endif %}
+          </div>
+          <div class="stitch-asset-body">
+            <div class="stitch-asset-preview-logo" id="logo-preview-box">
+              {% if business.logo %}
+                <img src="{{ business.logo }}" class="upload-preview" alt="Business Logo" id="logo-preview-img">
+              {% else %}
+                <div id="logo-fallback-badge" style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;">
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" stroke-width="2"><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/></svg>
+                  <span style="font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; line-height: 1.1;">{{ business.name[:18] }}</span>
+                </div>
+              {% endif %}
+            </div>
+            <div class="stitch-asset-actions">
+              <label class="stitch-file-btn">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                <span>{{ 'Replace emblem' if business.logo else 'Upload emblem' }}</span>
+                <input name="logo" type="file" accept="image/png,image/jpeg" id="input-logo-file" style="display: none;">
+              </label>
+              <div id="logo-filename" style="font-family: 'JetBrains Mono', monospace; font-size: 11px; color: #64748b;">
+                {{ 'Vector / raster logo active' if business.logo else 'PNG or JPEG, up to 2MB' }}
+              </div>
+            </div>
+          </div>
+          {% if business.logo %}
+            <label class="stitch-checkbox-inline" style="border-top: 1px solid #e2e8f0; padding-top: 10px; margin-top: 4px;">
+              <input type="checkbox" name="remove_logo" value="1">
+              <span>Remove or suppress logo on print vouchers</span>
+            </label>
+          {% endif %}
+        </div>
+
+        <!-- Authorised Signature Stamp -->
+        <div class="stitch-asset-card">
+          <div class="stitch-asset-header">
+            <div>
+              <h3 style="font-size: 14.5px; font-weight: 600; color: #0f172a; margin: 0;">Authorised Signatory Seal</h3>
+              <p style="font-size: 12px; color: #64748b; margin: 2px 0 0;">Embedded under company authorization box</p>
+            </div>
+            {% if business.signature %}
+              <span style="font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 9999px; background: #ecfdf5; color: #065f46;">Active</span>
+            {% else %}
+              <span style="font-size: 11px; font-weight: 500; padding: 2px 8px; border-radius: 9999px; background: #f1f5f9; color: #64748b;">Not Uploaded</span>
+            {% endif %}
+          </div>
+          <div class="stitch-asset-body">
+            <div class="stitch-asset-preview-signature" id="sign-preview-box">
+              {% if business.signature %}
+                <img src="{{ business.signature }}" class="upload-preview" alt="Signature Seal" id="sign-preview-img">
+              {% else %}
+                <div id="sign-fallback-stamp" style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; width: 100%;">
+                  <svg width="60" height="24" viewBox="0 0 100 40" fill="none" stroke="#475569" stroke-width="2" stroke-linecap="round">
+                    <path d="M 5,25 Q 25,5 35,28 T 60,15 T 85,32 T 95,10"></path>
+                  </svg>
+                  <div style="font-family: 'JetBrains Mono', monospace; font-size: 8px; color: #94a3b8; line-height: 1.1; text-align: center;">
+                    <div>{{ business.name[:20] }}</div>
+                    <div>Auth Signatory</div>
+                  </div>
+                </div>
+              {% endif %}
+            </div>
+            <div class="stitch-asset-actions">
+              <label class="stitch-file-btn">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                <span>{{ 'Replace seal' if business.signature else 'Upload seal' }}</span>
+                <input name="signature" type="file" accept="image/png,image/jpeg" id="input-sign-file" style="display: none;">
+              </label>
+              <div id="sign-filename" style="font-family: 'JetBrains Mono', monospace; font-size: 11px; color: #64748b;">
+                {{ 'Digital seal stamp active' if business.signature else 'PNG or JPEG, up to 2MB' }}
+              </div>
+            </div>
+          </div>
+          {% if business.signature %}
+            <label class="stitch-checkbox-inline" style="border-top: 1px solid #e2e8f0; padding-top: 10px; margin-top: 4px;">
+              <input type="checkbox" name="remove_signature" value="1">
+              <span>Remove or suppress digital signature stamp</span>
+            </label>
+          {% endif %}
+        </div>
+
+        <!-- Ledger Operational Governance Policy (Negative Stock Toggle) -->
+        <div class="stitch-col-full stitch-policy-box">
+          <input type="checkbox" name="negative_stock" id="neg-stock" {{ 'checked' if business.negative_stock else '' }} style="width: 18px; height: 18px; margin-top: 2px; border-radius: 4px; cursor: pointer;">
+          <div style="display: flex; flex-direction: column; gap: 2px;">
+            <label for="neg-stock" style="font-size: 13.5px; font-weight: 600; color: #0f172a; cursor: pointer;">
+              Allow negative inventory stock billing
+            </label>
+            <p style="font-size: 12.5px; color: #475569; margin: 0; line-height: 1.45;">
+              When enabled, cash sales, tax invoices, and delivery challans can be confirmed even if real-time SKU inventory reads zero or negative. A reconciliation variance entry is automatically generated in ledger reports.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+</form>
+
+{# ========================================================================= #}
+{# SECTION 5: OPERATIONAL AUDIT TRAIL TABLE                                 #}
+{# ========================================================================= #}
+<section class="stitch-settings-card" id="audit-trail">
+  <div class="stitch-settings-card-header">
+    <div class="stitch-settings-card-title-group">
+      <h2 class="stitch-settings-card-title">
+        <span>Audit Trail &amp; Ledger Event Log</span>
+        <span class="stitch-settings-meta-badge" style="background: #e0e7ff; color: #3730a3; border-color: #c7d2fe;">UTC Mode</span>
+      </h2>
+      <p class="stitch-settings-card-subtitle">
+        Latest 50 recorded security, master data, and operational ledger events.
+      </p>
+    </div>
+    <div style="display: flex; align-items: center; gap: 8px;">
+      <div style="position: relative; display: flex; align-items: center;">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="position: absolute; left: 10px; color: #94a3b8; pointer-events: none;"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+        <input type="text" id="audit-filter-input" placeholder="Filter actions..." style="height: 32px; padding: 0 10px 0 30px; font-size: 12.5px; border-radius: 6px; border: 1px solid #cbd5e1; width: 180px;">
+      </div>
     </div>
   </div>
-  <form method="post" enctype="multipart/form-data" class="form-grid three padded">
-    <input type="hidden" name="csrf" value="{{ csrf }}">
-    {% for k, l in [('name','Business name'),('address','Business address'),('phone','Phone number'),('email','Email'),('gstin','GSTIN'),('state','State'),('pin','PIN code'),('bank','Bank details'),('upi','UPI ID'),('signatory','Authorised signatory'),('prefix','Invoice number format'),('gst_rates','GST rates, separated by commas')] %}
-      {{ field(k, l, business[k]) }}
-    {% endfor %}
-
-    <input type="hidden" name="expected_invoice_number" value="{{ business.next_invoice_number }}">
-    <label>Next invoice number
-      <input type="number" name="next_invoice_number" min="1" max="999999999" value="{{ business.next_invoice_number }}" required>
-      <small>Starting number. Increments automatically after each new invoice.</small>
-    </label>
-    <label>Number digits
-      <input type="number" name="invoice_number_digits" min="1" max="9" value="{{ business.invoice_number_digits }}" required>
-      <small>3 digits produces 001; 5 digits produces 00001.</small>
-    </label>
-
-    <div class="full hint">
-      Use <code>{seq}</code> for the sequence number and optional <code>{fy}</code> for the financial year. Example: <code>ABC/{fy}/{seq}</code> with starting number 100 becomes <code>ABC/26-27/100</code>. Numbering continues across financial years until modified here. Existing invoices retain their saved numbers.
-    </div>
-
-    <label class="full">Default terms and conditions
-      <textarea name="terms" rows="3">{{ business.terms }}</textarea>
-    </label>
-
-    {% for k, l in [('logo','Business logo'),('signature','Signature')] %}
-      <label>{{ l }}
-        {% if business[k] %}
-          <img class="upload-preview" src="{{ business[k] }}" alt="{{ l }}">
-        {% endif %}
-        <input name="{{ k }}" type="file" accept="image/png,image/jpeg">
-        <span class="checkbox" style="margin-top:4px">
-          <input type="checkbox" name="remove_{{ k }}"> Remove image
-        </span>
-      </label>
-    {% endfor %}
-
-    <label class="checkbox full">
-      <input type="checkbox" name="negative_stock" {{ 'checked' if business.negative_stock else '' }}>
-      Allow negative stock (allow billing when inventory balance is zero or insufficient)
-    </label>
-
-    <div class="full">
-      <button class="primary" type="submit">Save settings</button>
-    </div>
-  </form>
-</article>
-
-<article class="panel">
-  <div class="panel-heading">
-    <div>
-      <h3>Audit trail</h3>
-      <p>Latest 50 recorded security and operational events (UTC)</p>
-    </div>
-  </div>
-  <div class="table-wrap">
-    <table class="audit-table">
+  <div class="stitch-audit-table-wrap">
+    <table class="stitch-audit-table audit-table">
       <thead>
         <tr>
-          <th>Timestamp</th>
+          <th>Timestamp (UTC)</th>
           <th>Action</th>
-          <th>Record</th>
-          <th>Details</th>
+          <th>Target Entity / Record</th>
+          <th>Details &amp; Delta</th>
+          <th style="text-align: right;">Actor</th>
         </tr>
       </thead>
-      <tbody>
+      <tbody id="audit-table-body">
         {% for e in events %}
-        <tr>
-          <td>{{ e.created_at }}</td>
-          <td><span class="badge">{{ e.action }}</span></td>
-          <td>{{ e.entity }} #{{ e.entity_id }}</td>
-          <td class="audit-detail">
-            {% if e.display_details %}
-              <details class="audit-details">
-                <summary>View details</summary>
-                <pre class="audit-json">{{ e.display_details }}</pre>
-              </details>
-            {% else %}
-              <span class="muted">No additional details recorded.</span>
-            {% endif %}
-          </td>
-        </tr>
+          <tr class="audit-row" data-search="{{ (e.created_at ~ ' ' ~ e.action ~ ' ' ~ e.entity ~ ' ' ~ e.entity_id ~ ' ' ~ (e.display_details or ''))|lower }}">
+            <td style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #64748b; white-space: nowrap;">
+              {{ e.created_at }}
+            </td>
+            <td>
+              <span class="stitch-audit-action-badge badge">{{ e.action }}</span>
+            </td>
+            <td style="font-weight: 500; color: #0f172a; white-space: nowrap;">
+              {{ e.entity }} #{{ e.entity_id }}
+            </td>
+            <td class="audit-detail" style="max-width: 480px;">
+              {% if e.display_details %}
+                <details class="audit-details">
+                  <summary>View details</summary>
+                  <pre class="audit-json">{{ e.display_details }}</pre>
+                </details>
+              {% else %}
+                <span class="muted" style="color: #94a3b8; font-size: 12px;">No additional details recorded.</span>
+              {% endif %}
+            </td>
+            <td style="text-align: right; font-family: 'JetBrains Mono', monospace; font-size: 11.5px; color: #64748b; white-space: nowrap;">
+              Admin ({{ e.user_id }})
+            </td>
+          </tr>
         {% else %}
-        <tr>
-          <td colspan="4" class="empty">No audit events recorded yet.</td>
-        </tr>
+          <tr>
+            <td colspan="5" class="empty" style="text-align: center; padding: 32px; color: #64748b;">
+              No audit events recorded yet.
+            </td>
+          </tr>
         {% endfor %}
       </tbody>
     </table>
   </div>
-</article>
+  <div style="padding: 12px 24px; background: #f8fafc; border-top: 1px solid #e2e8f0; display: flex; align-items: center; justify-content: space-between; font-size: 12px; color: #64748b;">
+    <span id="audit-showing-count">Showing {{ events|length }} of 50 recorded system events</span>
+  </div>
+</section>
 
+{# ========================================================================= #}
+{# SECTION 6: DANGER ZONE & DATA PURGE CONTROLS                             #}
+{# ========================================================================= #}
 {% if can_reset %}
-  {% include 'reset_sections.html' %}
-  <article class="panel" style="border-color:var(--red-border)">
-    <div class="panel-heading" style="background:var(--red-soft);border-color:var(--red-border)">
-      <div>
-        <h3 style="color:var(--red-text)">Reset company data</h3>
-        <p style="color:var(--red-text)">Permanently reset this company with a fresh workspace.</p>
+  <section class="stitch-settings-card stitch-danger-zone" id="danger-zone">
+    <div class="stitch-settings-card-header stitch-danger-header">
+      <div class="stitch-settings-card-title-group">
+        <h2 class="stitch-settings-card-title stitch-danger-title">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+          <span>Danger Zone &amp; Data Purge Controls</span>
+        </h2>
+        <p class="stitch-settings-card-subtitle" style="color: #9f1239;">
+          Destructive routines that alter ledger balances, remove customer registries, or re-initialize workspaces.
+        </p>
+      </div>
+      <span class="stitch-danger-badge">Irreversible</span>
+    </div>
+
+    <div class="stitch-settings-card-body" style="display: flex; flex-direction: column; gap: 0;">
+      <!-- Subsection 1: Reset Selected Operational Sections -->
+      <div class="stitch-danger-row">
+        <div style="display: flex; flex-direction: column; gap: 3px; max-width: 640px;">
+          <h3 style="font-size: 15px; font-weight: 600; color: #0f172a; margin: 0;">Reset selected operational sections</h3>
+          <p style="font-size: 13px; color: #64748b; margin: 0; line-height: 1.45;">
+            Applies to this company entity only. Billing history, subscription tier, and workspace users are strictly preserved while clearing select ledger modules (e.g. Products, Draft Invoices).
+          </p>
+        </div>
+        <button type="button" class="stitch-danger-btn-outline" id="toggle-sections-reset-btn">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v4"/><path d="m4.93 4.93 2.83 2.83"/><path d="M2 12h4"/><path d="m4.93 19.07 2.83-2.83"/><path d="M12 22v-4"/><path d="m19.07 19.07-2.83-2.83"/><path d="M22 12h-4"/><path d="m19.07 4.93-2.83 2.83"/></svg>
+          <span>Choose what to reset</span>
+        </button>
+      </div>
+
+      <!-- Expandable Sections Reset Container -->
+      <div id="sections-reset-container" class="stitch-danger-box" style="display: none;">
+        <p style="font-size: 13px; color: #9f1239; margin: 0;">Select the records you want permanently deleted. Linked sections must also be selected; otherwise nothing is reset. There is no backup or Undo.</p>
+        <form method="post" class="confirm" data-confirm="Permanently reset the selected sections for this company without a backup? This cannot be undone." style="display: flex; flex-direction: column; gap: 14px;">
+          <input type="hidden" name="csrf" value="{{ csrf }}">
+          <input type="hidden" name="action" value="reset_sections">
+
+          <fieldset style="border: 1px solid rgba(225, 29, 72, 0.25); border-radius: 8px; padding: 14px; background: #ffffff;">
+            <legend style="padding: 0 6px; font-weight: 600; font-size: 12px; color: #0f172a;">Sections to reset</legend>
+            <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 8px;">
+              {% for key, label in [('billing','1) Billing'),('proposals','2) Proposals'),('invoices','3) Invoices'),('customers','4) Customers'),('inventory','5) Inventory'),('products','6) Products'),('payments','7) Payments'),('finance','8) Finance'),('reports','9) Reports')] %}
+                <label style="display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-radius: 6px; background: #f8fafc; font-size: 12.5px; font-weight: 500; color: #334155; cursor: pointer;">
+                  <input type="checkbox" name="sections" value="{{ key }}" style="width: 15px; height: 15px;">
+                  <span>{{ label }}</span>
+                </label>
+              {% endfor %}
+            </div>
+          </fieldset>
+
+          <div style="display: grid; grid-template-columns: 1fr; gap: 12px;">
+            <label style="display: flex; flex-direction: column; gap: 4px; font-size: 12.5px; font-weight: 600; color: #0f172a;">
+              <span>Type <code>RESET SELECTED COMPANY DATA</code> to authorize</span>
+              <input name="confirmation" required pattern="RESET SELECTED COMPANY DATA" autocomplete="off" spellcheck="false" placeholder="RESET SELECTED COMPANY DATA" class="stitch-settings-input" style="border-color: rgba(225, 29, 72, 0.4); font-family: 'JetBrains Mono', monospace;">
+            </label>
+            <label style="display: flex; flex-direction: column; gap: 4px; font-size: 12.5px; font-weight: 600; color: #0f172a;">
+              <span>Your current password</span>
+              <input name="password" type="password" required autocomplete="current-password" placeholder="••••••••••••" class="stitch-settings-input" style="border-color: rgba(225, 29, 72, 0.4);">
+            </label>
+          </div>
+
+          <div>
+            <button class="stitch-danger-btn-fill" type="submit">Permanently reset selected sections</button>
+          </div>
+        </form>
+      </div>
+
+      <!-- Subsection 2: Permanently Reset Company Data -->
+      <div class="stitch-danger-row">
+        <div style="display: flex; flex-direction: column; gap: 3px; max-width: 640px;">
+          <h3 style="font-size: 15px; font-weight: 600; color: #be123c; margin: 0;">Permanently reset company data</h3>
+          <p style="font-size: 13px; color: #64748b; margin: 0; line-height: 1.45;">
+            Permanently purges all financial ledgers, GST filings, inventory records, and counterparty contacts. Workspace returns to clean Day 0 state.
+          </p>
+        </div>
+        <button type="button" class="stitch-danger-btn-fill" id="toggle-company-reset-btn">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          <span>Expand Reset Controls</span>
+        </button>
+      </div>
+
+      <!-- Expandable Company Full Reset Container -->
+      <div id="company-reset-container" class="stitch-danger-box" style="display: none;">
+        <div style="display: flex; align-items: flex-start; gap: 10px; color: #be123c; font-size: 13px; font-weight: 500;">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="flex-shrink: 0; margin-top: 1px;"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          <span>This permanently deletes this company's invoices (including Trash), payments, proposals, customers, products, stock, income, expenses, receipts, business settings, other users and roles. Your login credentials and subscription remain active.</span>
+        </div>
+        <form method="post" class="confirm" data-confirm="Permanently delete this company's business data without a backup? This cannot be undone." style="display: flex; flex-direction: column; gap: 14px;">
+          <input type="hidden" name="csrf" value="{{ csrf }}">
+          <input type="hidden" name="action" value="reset_company">
+
+          <div style="display: grid; grid-template-columns: 1fr; gap: 12px;">
+            <label style="display: flex; flex-direction: column; gap: 4px; font-size: 12.5px; font-weight: 600; color: #0f172a;">
+              <span>Type <code>RESET COMPANY</code> to confirm factory wipe</span>
+              <input name="confirmation" required autocomplete="off" spellcheck="false" pattern="RESET COMPANY" placeholder="RESET COMPANY" class="stitch-settings-input" style="border-color: rgba(225, 29, 72, 0.4); font-family: 'JetBrains Mono', monospace;">
+            </label>
+            <label style="display: flex; flex-direction: column; gap: 4px; font-size: 12.5px; font-weight: 600; color: #0f172a;">
+              <span>Your current password</span>
+              <input name="password" type="password" required autocomplete="current-password" placeholder="••••••••••••" class="stitch-settings-input" style="border-color: rgba(225, 29, 72, 0.4);">
+            </label>
+          </div>
+
+          <div>
+            <button class="stitch-danger-btn-fill" type="submit">Permanently reset company</button>
+          </div>
+        </form>
       </div>
     </div>
-    <details class="padded">
-      <summary class="danger" style="cursor:pointer;font-weight:600">Danger Zone: Click to expand reset options</summary>
-      <p style="margin-top:12px">This permanently deletes this company's invoices (including Trash), payments, proposals, customers, products, stock, income, expenses, receipts, business settings, other users and roles. Your login credentials and subscription remain active. All sessions are signed out. There is no Undo.</p>
-      <form method="post" class="form-grid confirm" data-confirm="Permanently delete this company's business data without a backup? This cannot be undone.">
-        <input type="hidden" name="csrf" value="{{ csrf }}">
-        <input type="hidden" name="action" value="reset_company">
-        <label>Type RESET COMPANY
-          <input name="confirmation" required autocomplete="off" spellcheck="false" pattern="RESET COMPANY" placeholder="RESET COMPANY">
-        </label>
-        <label>Your current password
-          <input name="password" type="password" required autocomplete="current-password">
-        </label>
-        <div class="full">
-          <button class="secondary danger" type="submit">Permanently reset company</button>
-        </div>
-      </form>
-    </details>
-  </article>
+  </section>
 {% endif %}
+
+{# ========================================================================= #}
+{# JAVASCRIPT MICRO-INTERACTIONS & LIVE PREVIEW ENGINE                       #}
+{# ========================================================================= #}
+<script>
+  // 1. Dynamic Next Invoice ID Live Evaluator
+  const prefixInput = document.getElementById('setting-prefix');
+  const nextSeqInput = document.getElementById('setting-next-invoice');
+  const digitsSelect = document.getElementById('setting-digits');
+  const nextIdPreview = document.getElementById('next-id-preview');
+
+  function updateNextIdPreview() {
+    if (!prefixInput || !nextSeqInput || !digitsSelect || !nextIdPreview) return;
+    try {
+      const pattern = prefixInput.value || 'INV/{fy}/{seq}';
+      const seqNum = parseInt(nextSeqInput.value, 10) || 1;
+      const digits = parseInt(digitsSelect.value, 10) || 3;
+      const paddedSeq = String(seqNum).padStart(digits, '0');
+
+      // Approximate Indian FY (e.g. 26-27 or 24-25)
+      const now = new Date();
+      const currentYear = now.getFullYear();
+      const startYear = (now.getMonth() >= 3) ? currentYear : currentYear - 1;
+      const endYear = startYear + 1;
+      const fyStr = String(startYear).slice(-2) + '-' + String(endYear).slice(-2);
+
+      const previewStr = pattern.replace('{seq}', paddedSeq).replace('{fy}', fyStr);
+      nextIdPreview.textContent = previewStr;
+    } catch (e) {
+      nextIdPreview.textContent = 'INV/26-27/001';
+    }
+  }
+
+  if (prefixInput && nextSeqInput && digitsSelect) {
+    prefixInput.addEventListener('input', updateNextIdPreview);
+    nextSeqInput.addEventListener('input', updateNextIdPreview);
+    digitsSelect.addEventListener('change', updateNextIdPreview);
+    updateNextIdPreview();
+  }
+
+  // 2. Character counter for Terms & Conditions
+  const termsInput = document.getElementById('setting-terms');
+  const termsCounter = document.getElementById('terms-char-count');
+  if (termsInput && termsCounter) {
+    termsInput.addEventListener('input', () => {
+      termsCounter.textContent = termsInput.value.length + ' characters';
+    });
+  }
+
+  // 3. GST Tax Rate Chips Interactivity
+  const gstInput = document.getElementById('setting-gst-rates');
+  const rateChips = document.querySelectorAll('#rate-chips .stitch-rate-chip');
+  if (gstInput && rateChips.length) {
+    rateChips.forEach(chip => {
+      chip.addEventListener('click', () => {
+        const rate = chip.dataset.rate;
+        const currentRates = gstInput.value.split(',').map(s => s.trim()).filter(Boolean);
+        if (!currentRates.includes(rate)) {
+          currentRates.push(rate);
+          currentRates.sort((a,b) => parseFloat(a) - parseFloat(b));
+          gstInput.value = currentRates.join(',');
+        }
+        chip.classList.toggle('active');
+      });
+    });
+  }
+
+  // 4. File Upload Previews
+  const logoInput = document.getElementById('input-logo-file');
+  const logoPreviewBox = document.getElementById('logo-preview-box');
+  const logoFilename = document.getElementById('logo-filename');
+  if (logoInput) {
+    logoInput.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (file) {
+        logoFilename.textContent = file.name + ' (' + Math.round(file.size / 1024) + ' KB)';
+        const reader = new FileReader();
+        reader.onload = (evt) => {
+          logoPreviewBox.innerHTML = '<img src="' + evt.target.result + '" style="max-width:100%;max-height:100%;object-fit:contain;">';
+        };
+        reader.readAsDataURL(file);
+      }
+    });
+  }
+
+  const signInput = document.getElementById('input-sign-file');
+  const signPreviewBox = document.getElementById('sign-preview-box');
+  const signFilename = document.getElementById('sign-filename');
+  if (signInput) {
+    signInput.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (file) {
+        signFilename.textContent = file.name + ' (' + Math.round(file.size / 1024) + ' KB)';
+        const reader = new FileReader();
+        reader.onload = (evt) => {
+          signPreviewBox.innerHTML = '<img src="' + evt.target.result + '" style="max-width:100%;max-height:100%;object-fit:contain;">';
+        };
+        reader.readAsDataURL(file);
+      }
+    });
+  }
+
+  // 5. Audit Trail Real-time Filter
+  const auditFilterInput = document.getElementById('audit-filter-input');
+  const auditRows = document.querySelectorAll('#audit-table-body .audit-row');
+  const auditShowingCount = document.getElementById('audit-showing-count');
+  if (auditFilterInput && auditRows.length) {
+    auditFilterInput.addEventListener('input', (e) => {
+      const q = e.target.value.toLowerCase().trim();
+      let visible = 0;
+      auditRows.forEach(row => {
+        const text = row.dataset.search || row.textContent.toLowerCase();
+        if (!q || text.includes(q)) {
+          row.style.display = '';
+          visible++;
+        } else {
+          row.style.display = 'none';
+        }
+      });
+      if (auditShowingCount) {
+        auditShowingCount.textContent = 'Showing ' + visible + ' of ' + auditRows.length + ' recorded system events';
+      }
+    });
+  }
+
+  // 6. Danger Zone Accordions
+  const toggleSectionsBtn = document.getElementById('toggle-sections-reset-btn');
+  const sectionsBox = document.getElementById('sections-reset-container');
+  if (toggleSectionsBtn && sectionsBox) {
+    toggleSectionsBtn.addEventListener('click', () => {
+      const isHidden = sectionsBox.style.display === 'none';
+      sectionsBox.style.display = isHidden ? 'flex' : 'none';
+      toggleSectionsBtn.querySelector('span').textContent = isHidden ? 'Hide reset options' : 'Choose what to reset';
+    });
+  }
+
+  const toggleCompanyBtn = document.getElementById('toggle-company-reset-btn');
+  const companyBox = document.getElementById('company-reset-container');
+  if (toggleCompanyBtn && companyBox) {
+    toggleCompanyBtn.addEventListener('click', () => {
+      const isHidden = companyBox.style.display === 'none';
+      companyBox.style.display = isHidden ? 'flex' : 'none';
+      toggleCompanyBtn.querySelector('span').textContent = isHidden ? 'Collapse Reset Controls' : 'Expand Reset Controls';
+    });
+  }
+
+  // 7. Keyboard Shortcut (⌘S / Ctrl+S) to submit Settings Form
+  window.addEventListener('keydown', (e) => {
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 's') {
+      e.preventDefault();
+      const settingsForm = document.getElementById('settings-form');
+      if (settingsForm) {
+        settingsForm.submit();
+      }
+    }
+  });
+
+  // 8. Sticky Nav Active Indicator on Scroll
+  const navTabs = document.querySelectorAll('#settings-nav .stitch-settings-tab');
+  const sections = document.querySelectorAll('.stitch-settings-card');
+  window.addEventListener('scroll', () => {
+    let currentId = '';
+    sections.forEach(sec => {
+      const rect = sec.getBoundingClientRect();
+      if (rect.top <= 140 && rect.bottom >= 140) {
+        currentId = sec.id;
+      }
+    });
+    if (currentId) {
+      navTabs.forEach(tab => {
+        if (tab.getAttribute('href') === '#' + currentId) {
+          tab.classList.add('active');
+        } else if (!tab.classList.contains('stitch-settings-tab-danger')) {
+          tab.classList.remove('active');
+        }
+      });
+    }
+  });
+</script>
 {% endblock %}
