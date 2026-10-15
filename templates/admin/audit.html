@@ -1,1 +1,46 @@
-{% extends 'admin/base.html' %}{% block subtitle %}An append-only record of owner actions and access changes.{% endblock %}{% block content %}<section class="panel"><form class="filter-bar"><label>Company<select name="business_id"><option value="">All companies</option>{% for row in companies %}<option value="{{ row.id }}" {{ 'selected' if request.args.get('business_id')==row.id|string else '' }}>{{ row.name }}</option>{% endfor %}</select></label><label>Admin<select name="admin_id"><option value="">All administrators</option>{% for row in admins %}<option value="{{ row.id }}">{{ row.name }}</option>{% endfor %}</select></label><label>Action<input name="action" placeholder="company.approve" value="{{ request.args.get('action','') }}"></label><label>From<input type="date" name="from" value="{{ request.args.get('from','') }}"></label><label>To<input type="date" name="to" value="{{ request.args.get('to','') }}"></label><button class="primary">Filter</button></form>{% include 'admin/audit_table.html' %}<div class="padded"><small>Showing up to 300 recent matching events. Narrow the date range to see older events.</small></div></section>{% endblock %}
+{% extends 'admin/base.html' %}
+{% block subtitle %}An append-only record of owner actions and access changes.{% endblock %}
+{% block content %}
+<section class="panel">
+  <form class="filter-bar" method="get">
+    <label>
+      <span>Company</span>
+      <select name="business_id">
+        <option value="">All companies</option>
+        {% for row in companies %}
+          <option value="{{ row.id }}" {{ 'selected' if request.args.get('business_id')==row.id|string else '' }}>{{ row.name }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>
+      <span>Admin</span>
+      <select name="admin_id">
+        <option value="">All administrators</option>
+        {% for row in admins %}
+          <option value="{{ row.id }}">{{ row.name }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>
+      <span>Action</span>
+      <input name="action" placeholder="company.approve" value="{{ request.args.get('action','') }}">
+    </label>
+    <label>
+      <span>From</span>
+      <input type="date" name="from" value="{{ request.args.get('from','') }}">
+    </label>
+    <label>
+      <span>To</span>
+      <input type="date" name="to" value="{{ request.args.get('to','') }}">
+    </label>
+    <button class="primary" type="submit" style="align-self: flex-end;">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+      Filter
+    </button>
+  </form>
+  {% include 'admin/audit_table.html' %}
+  <div class="padded" style="border-top: 1px solid var(--border); background: var(--bg);">
+    <small class="muted">Showing up to 300 recent matching events. Narrow the date range to see older events.</small>
+  </div>
+</section>
+{% endblock %}

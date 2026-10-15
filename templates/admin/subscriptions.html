@@ -1,1 +1,91 @@
-{% extends 'admin/base.html' %}{% block content %}<div class="status-tabs"><a class="secondary" href="/subscriptions">All subscriptions</a><a class="secondary" href="?status=TRIAL">Trials</a><a class="secondary" href="?status=ACTIVE">Active</a><a class="secondary" href="?expiring=1">Expiring soon</a><a class="secondary" href="?status=EXPIRED">Expired</a><a class="secondary" href="?status=SUSPENDED">Suspended</a><a class="secondary" href="?status=CANCELLED">Cancelled</a></div><section class="panel"><div class="table-wrap"><table><tr><th>Company</th><th>Plan</th><th>Status</th><th>Cycle</th><th>Expiry</th><th>Amount / payment</th><th></th></tr>{% for row in companies %}<tr><td>{{ row.name }}</td><td>{{ row.subscription.plan.name }}</td><td><span class="badge">{{ row.subscription.effective_status }}</span></td><td>{{ row.subscription.cycle }}</td><td>{{ row.subscription.expiry_at or 'No expiry' }}</td><td>{{ row.subscription.amount|inr }}<small>{{ row.subscription.payment_status }}</small></td><td><a href="/companies/{{ row.id }}">Manage →</a></td></tr>{% else %}<tr><td colspan="7" class="empty">No subscriptions in this view.</td></tr>{% endfor %}</table></div></section><section class="panel"><div class="panel-heading"><h3>Pending renewal requests</h3></div><div class="table-wrap"><table><tr><th>Company</th><th>Requested</th><th>Plan</th><th>Cycle</th><th></th></tr>{% for row in renewals %}<tr><td>#{{ row.business_id }}</td><td>{{ row.created_at }}</td><td>#{{ row.plan_id }}</td><td>{{ row.cycle }}</td><td><a href="/companies/{{ row.business_id }}">Review →</a></td></tr>{% else %}<tr><td colspan="5" class="empty">No pending renewals.</td></tr>{% endfor %}</table></div></section>{% endblock %}
+{% extends 'admin/base.html' %}
+
+{% block content %}
+<div class="status-tabs">
+  <a class="secondary {{ 'selected' if not request.args.get('status') and not request.args.get('expiring') else '' }}" href="/subscriptions">All subscriptions</a>
+  <a class="secondary {{ 'selected' if request.args.get('status') == 'TRIAL' else '' }}" href="?status=TRIAL">Trials</a>
+  <a class="secondary {{ 'selected' if request.args.get('status') == 'ACTIVE' else '' }}" href="?status=ACTIVE">Active</a>
+  <a class="secondary {{ 'selected' if request.args.get('expiring') == '1' else '' }}" href="?expiring=1">Expiring soon</a>
+  <a class="secondary {{ 'selected' if request.args.get('status') == 'EXPIRED' else '' }}" href="?status=EXPIRED">Expired</a>
+  <a class="secondary {{ 'selected' if request.args.get('status') == 'SUSPENDED' else '' }}" href="?status=SUSPENDED">Suspended</a>
+  <a class="secondary {{ 'selected' if request.args.get('status') == 'CANCELLED' else '' }}" href="?status=CANCELLED">Cancelled</a>
+</div>
+
+<section class="panel">
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Company</th>
+          <th>Plan</th>
+          <th>Status</th>
+          <th>Cycle</th>
+          <th>Expiry</th>
+          <th>Amount / Payment</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in companies %}
+        <tr>
+          <td><strong>{{ row.name }}</strong></td>
+          <td>{{ row.subscription.plan.name }}</td>
+          <td>
+            {% set is_active = (row.subscription.effective_status == 'ACTIVE') %}
+            <span class="badge {{ 'green' if is_active else '' }}">
+              <span class="dot {{ 'green' if is_active else '' }}"></span>
+              {{ row.subscription.effective_status }}
+            </span>
+          </td>
+          <td>{{ row.subscription.cycle }}</td>
+          <td>{{ row.subscription.expiry_at or 'No expiry' }}</td>
+          <td>
+            <strong>{{ row.subscription.amount|inr }}</strong>
+            <small>{{ row.subscription.payment_status }}</small>
+          </td>
+          <td><a href="/companies/{{ row.id }}">Manage →</a></td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="7" class="empty">No subscriptions in this view.</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="panel">
+  <div class="panel-heading">
+    <h3>Pending renewal requests</h3>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Company</th>
+          <th>Requested</th>
+          <th>Plan</th>
+          <th>Cycle</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in renewals %}
+        <tr>
+          <td><strong>Company #{{ row.business_id }}</strong></td>
+          <td>{{ row.created_at }}</td>
+          <td>#{{ row.plan_id }}</td>
+          <td>{{ row.cycle }}</td>
+          <td><a href="/companies/{{ row.business_id }}">Review →</a></td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="5" class="empty">No pending renewals.</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}

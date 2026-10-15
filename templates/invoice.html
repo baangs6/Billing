@@ -1,1 +1,216 @@
-{% extends 'base.html' %}{% block actions %}<div class="toolbar">{% if inv.status=='FINAL' and 'invoice.edit' in policy.permissions %}<a class="secondary" href="/billing?edit={{ inv.id }}">Edit invoice</a>{% endif %}{% if policy.features.pdf %}<a class="secondary" href="/invoices/{{ inv.id }}/pdf?preview=1" target="_blank">Preview</a><a class="primary" href="/invoices/{{ inv.id }}/pdf">↓ Download PDF</a>{% endif %}<button class="secondary" id="print-invoice">Print</button>{% if policy.features.pdf %}<button class="secondary" id="share-invoice" data-id="{{ inv.id }}" data-number="{{ inv.number }}" data-filename="{{ filename }}">Share</button>{% endif %}</div>{% endblock %}{% block content %}<div class="invoice-controls">{% if 'invoice.cancel' in policy.permissions and not inv.received %}<form method="post" action="/invoices/{{ inv.id }}/{{ 'restore' if inv.get('deleted') else 'delete' }}" class="inline confirm" data-confirm="{{ 'Restore this invoice as cancelled? Stock remains available.' if inv.get('deleted') else 'Move this invoice to Trash? Stock will be restored. You can recover it as cancelled.' }}"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="text-button danger">{{ 'Restore invoice' if inv.get('deleted') else 'Delete invoice' }}</button></form>{% endif %}{% if inv.get('deleted') %}<span class="badge">In Trash</span>{% endif %}{% if inv.status=='FINAL' %}{% if 'payment.record' in policy.permissions %}<a href="/payments?invoice={{ inv.id }}">Record payment</a>{% endif %}{% if 'invoice.cancel' in policy.permissions %}<form method="post" action="/invoices/{{ inv.id }}/cancel" class="inline confirm" data-confirm="Cancel this invoice and restore stock? Paid invoices cannot be cancelled."><input type="hidden" name="csrf" value="{{ csrf }}"><button class="text-button danger">Cancel invoice</button></form>{% endif %}{% endif %}{% if 'invoice.create' in policy.permissions %}<a href="/billing?duplicate={{ inv.id }}">Duplicate</a>{% endif %}{% if inv.status!='FINAL' %}<span class="badge">{{ inv.status }}</span>{% endif %}</div>{% set b=inv.snapshot.business %}{% set c=inv.snapshot.customer %}<article class="invoice-paper" id="invoice-paper"><div class="invoice-header">{% if b.logo %}<img src="{{ b.logo }}" class="invoice-logo">{% endif %}<div><h2>{{ b.name }}</h2><p>{{ b.address }}<br>Phone: {{ b.phone }} · {{ b.email }}<br>{% if inv.type=='GST' %}GSTIN: {{ b.gstin or '—' }} · {% endif %}{{ b.state }} {{ b.pin }}</p></div><strong>{{ 'TAX INVOICE' if inv.type=='GST' else 'BILL OF SUPPLY' }}</strong></div><div class="invoice-parties"><div><small>BILL TO</small><h3>{{ c.name }}</h3><p>{{ c.data.address }}<br>{{ c.data.state }} {{ c.data.pin }}<br>Phone: {{ c.data.phone }}{% if inv.type=='GST' %}<br>GSTIN: {{ c.data.gstin or '—' }}{% endif %}</p></div><div><p><strong>{{ inv.number }}</strong><br>Invoice date: {{ inv.date }}<br>Installation: {{ inv.snapshot.installation or '—' }}<br>Service: {{ inv.snapshot.service or '—' }}</p></div></div><div class="table-wrap"><table><thead><tr><th>#</th><th>Item{% if inv.type=='GST' %} / HSN{% endif %}</th><th>Qty</th><th>Rate</th><th>MRP</th><th>Discount</th>{% if inv.type=='GST' %}<th>GST / Tax</th>{% endif %}<th>Amount</th></tr></thead><tbody>{% for item in inv['items'] %}<tr><td>{{ loop.index }}</td><td>{{ item.name }}{% if inv.type=='GST' %}<small>{{ item.hsn }}</small>{% endif %}</td><td>{{ item.quantity|qty }} {{ item.unit }}</td><td>{{ item.rate|inr }}</td><td>{{ item.mrp|inr }}</td><td>{{ item.discount|inr }}</td>{% if inv.type=='GST' %}<td>{{ item.gst }}%<small>{{ item.tax|inr }}</small></td>{% endif %}<td>{{ item.total|inr }}</td></tr>{% endfor %}</tbody></table></div><div class="invoice-totals">{% for label,key in [('Subtotal','subtotal'),('Discount','discount'),('Taxable amount' if inv.type=='GST' else 'Total amount','taxable'),('CGST','cgst'),('SGST','sgst'),('IGST','igst'),('Grand total','total'),('Received','received'),('Balance due','balance')] %}{% if key not in ['cgst','sgst','igst'] or inv[key] %}<div class="summary-line {{ 'grand' if key=='total' else '' }}"><span>{{ label }}</span><strong>{{ inv[key]|inr }}</strong></div>{% endif %}{% endfor %}</div><div class="invoice-footer"><div>{% if inv.snapshot.get('notes') %}<strong>Notes</strong><p class="preserve">{{ inv.snapshot.notes }}</p>{% endif %}<strong>Terms & conditions</strong><p class="preserve">{{ inv.snapshot.terms }}</p><p>Bank: {{ b.bank or '—' }}<br>UPI: {{ b.upi or '—' }}</p></div><div class="signature">{% if b.signature %}<img src="{{ b.signature }}">{% endif %}<strong>{{ b.signatory }}</strong><p>Authorised Signatory<br>For {{ b.name }}</p></div></div></article><article class="panel"><div class="panel-heading"><h3>Payment history</h3></div><div class="table-wrap"><table><thead><tr><th>Date</th><th>Amount</th><th>Method</th><th>Reference</th><th>Notes</th><th>Actions</th></tr></thead><tbody>{% for p in inv.payments %}<tr><td>{{ p.date }}</td><td>{{ p.amount|inr }}</td><td>{{ p.method }}</td><td>{{ p.reference }}</td><td>{{ p.notes }}</td><td>{% if inv.status=='FINAL' and 'payment.record' in policy.permissions %}<a href="/payments?edit={{ p.id }}">Edit payment</a>{% endif %}</td></tr>{% else %}<tr><td colspan="6" class="empty">No payments recorded.</td></tr>{% endfor %}</tbody></table></div></article>{% endblock %}
+{% extends 'base.html' %}
+
+{% block actions %}
+<div class="toolbar">
+  {% if inv.status == 'FINAL' and 'invoice.edit' in policy.permissions %}
+    <a class="secondary" href="/billing?edit={{ inv.id }}">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+      Edit invoice
+    </a>
+  {% endif %}
+  {% if policy.features.pdf %}
+    <a class="secondary" href="/invoices/{{ inv.id }}/pdf?preview=1" target="_blank">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+      Preview
+    </a>
+    <a class="primary" href="/invoices/{{ inv.id }}/pdf">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      Download PDF
+    </a>
+  {% endif %}
+  <button class="secondary" id="print-invoice">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect width="12" height="8" x="6" y="14"/></svg>
+    Print
+  </button>
+  {% if policy.features.pdf %}
+    <button class="secondary" id="share-invoice" data-id="{{ inv.id }}" data-number="{{ inv.number }}" data-filename="{{ filename }}">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" x2="15.42" y1="13.51" y2="17.49"/><line x1="15.41" x2="8.59" y1="6.51" y2="10.49"/></svg>
+      Share
+    </button>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="invoice-controls">
+  {% if 'invoice.cancel' in policy.permissions and not inv.received %}
+    <form method="post" action="/invoices/{{ inv.id }}/{{ 'restore' if inv.get('deleted') else 'delete' }}" class="inline confirm" data-confirm="{{ 'Restore this invoice as cancelled? Stock remains available.' if inv.get('deleted') else 'Move this invoice to Trash? Stock will be restored. You can recover it as cancelled.' }}">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <button class="text-button danger">{{ 'Restore invoice' if inv.get('deleted') else 'Delete invoice' }}</button>
+    </form>
+  {% endif %}
+
+  {% if inv.get('deleted') %}
+    <span class="badge red"><span class="dot red-dot"></span> In Trash</span>
+  {% endif %}
+
+  {% if inv.status == 'FINAL' %}
+    {% if 'payment.record' in policy.permissions %}
+      <a class="secondary" href="/payments?invoice={{ inv.id }}">Record payment</a>
+    {% endif %}
+    {% if 'invoice.cancel' in policy.permissions %}
+      <form method="post" action="/invoices/{{ inv.id }}/cancel" class="inline confirm" data-confirm="Cancel this invoice and restore stock? Paid invoices cannot be cancelled.">
+        <input type="hidden" name="csrf" value="{{ csrf }}">
+        <button class="text-button danger">Cancel invoice</button>
+      </form>
+    {% endif %}
+  {% endif %}
+
+  {% if 'invoice.create' in policy.permissions %}
+    <a href="/billing?duplicate={{ inv.id }}">Duplicate</a>
+  {% endif %}
+
+  {% if inv.status != 'FINAL' %}
+    <span class="badge">{{ inv.status }}</span>
+  {% endif %}
+</div>
+
+{% set b = inv.snapshot.business %}
+{% set c = inv.snapshot.customer %}
+<article class="invoice-paper" id="invoice-paper">
+  <div class="invoice-header">
+    {% if b.logo %}
+      <img src="{{ b.logo }}" class="invoice-logo" alt="Business Logo">
+    {% endif %}
+    <div>
+      <h2>{{ b.name }}</h2>
+      <p>
+        {{ b.address }}<br>
+        Phone: {{ b.phone }} · {{ b.email }}<br>
+        {% if inv.type == 'GST' %}GSTIN: {{ b.gstin or '—' }} · {% endif %}{{ b.state }} {{ b.pin }}
+      </p>
+    </div>
+    <strong>{{ 'TAX INVOICE' if inv.type == 'GST' else 'BILL OF SUPPLY' }}</strong>
+  </div>
+
+  <div class="invoice-parties">
+    <div>
+      <small>BILL TO</small>
+      <h3>{{ c.name }}</h3>
+      <p>
+        {{ c.data.address }}<br>
+        {{ c.data.state }} {{ c.data.pin }}<br>
+        Phone: {{ c.data.phone }}
+        {% if inv.type == 'GST' %}<br>GSTIN: {{ c.data.gstin or '—' }}{% endif %}
+      </p>
+    </div>
+    <div style="text-align:right">
+      <p>
+        <strong style="font-size:16px;color:var(--ink)">{{ inv.number }}</strong><br>
+        Invoice date: <strong>{{ inv.date }}</strong><br>
+        Installation: {{ inv.snapshot.installation or '—' }}<br>
+        Service: {{ inv.snapshot.service or '—' }}
+      </p>
+    </div>
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Item{% if inv.type == 'GST' %} / HSN{% endif %}</th>
+          <th>Qty</th>
+          <th>Rate</th>
+          <th>MRP</th>
+          <th>Discount</th>
+          {% if inv.type == 'GST' %}<th>GST / Tax</th>{% endif %}
+          <th style="text-align:right">Amount</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in inv['items'] %}
+        <tr>
+          <td>{{ loop.index }}</td>
+          <td>
+            <strong>{{ item.name }}</strong>
+            {% if inv.type == 'GST' %}<small>{{ item.hsn }}</small>{% endif %}
+          </td>
+          <td>{{ item.quantity|qty }} {{ item.unit }}</td>
+          <td>{{ item.rate|inr }}</td>
+          <td>{{ item.mrp|inr }}</td>
+          <td>{{ item.discount|inr }}</td>
+          {% if inv.type == 'GST' %}
+            <td>{{ item.gst }}%<small>{{ item.tax|inr }}</small></td>
+          {% endif %}
+          <td style="text-align:right"><strong>{{ item.total|inr }}</strong></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="invoice-totals">
+    {% for label, key in [('Subtotal','subtotal'),('Discount','discount'),('Taxable amount' if inv.type=='GST' else 'Total amount','taxable'),('CGST','cgst'),('SGST','sgst'),('IGST','igst'),('Grand total','total'),('Received','received'),('Balance due','balance')] %}
+      {% if key not in ['cgst','sgst','igst'] or inv[key] %}
+        <div class="summary-line {{ 'grand' if key == 'total' else '' }}">
+          <span>{{ label }}</span>
+          <strong>{{ inv[key]|inr }}</strong>
+        </div>
+      {% endif %}
+    {% endfor %}
+  </div>
+
+  <div class="invoice-footer">
+    <div>
+      {% if inv.snapshot.get('notes') %}
+        <strong style="display:block;margin-bottom:4px">Notes</strong>
+        <p class="preserve">{{ inv.snapshot.notes }}</p>
+      {% endif %}
+      <strong style="display:block;margin-bottom:4px">Terms & conditions</strong>
+      <p class="preserve">{{ inv.snapshot.terms }}</p>
+      <p style="margin-top:12px;font-size:12px">
+        Bank: {{ b.bank or '—' }}<br>
+        UPI: {{ b.upi or '—' }}
+      </p>
+    </div>
+    <div class="signature">
+      {% if b.signature %}
+        <img src="{{ b.signature }}" alt="Authorised Signature">
+      {% endif %}
+      <strong>{{ b.signatory }}</strong>
+      <p>Authorised Signatory<br>For {{ b.name }}</p>
+    </div>
+  </div>
+</article>
+
+<article class="panel">
+  <div class="panel-heading">
+    <h3>Payment history</h3>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Amount</th>
+          <th>Method</th>
+          <th>Reference</th>
+          <th>Notes</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for p in inv.payments %}
+        <tr>
+          <td>{{ p.date }}</td>
+          <td><strong>{{ p.amount|inr }}</strong></td>
+          <td>{{ p.method }}</td>
+          <td>{{ p.reference or '—' }}</td>
+          <td>{{ p.notes or '—' }}</td>
+          <td>
+            {% if inv.status == 'FINAL' and 'payment.record' in policy.permissions %}
+              <a href="/payments?edit={{ p.id }}">Edit payment</a>
+            {% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="6" class="empty">No payments recorded.</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</article>
+{% endblock %}

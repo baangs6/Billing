@@ -1,1 +1,84 @@
-{% extends 'base.html' %}{% block subtitle %}Control access to your company. Passwords are never displayed.{% endblock %}{% block content %}<div class="split-layout"><section class="panel"><div class="panel-heading"><h3>Your users</h3></div><div class="table-wrap"><table><tr><th>User</th><th>Role</th><th>Status</th><th></th></tr>{% for user in users %}<tr><td>{{ user.name }}<small>{{ user.email }}</small></td><td>{% for role in roles if role.id==user.role_id %}{{ role.name }}{% endfor %}</td><td>{{ 'Active' if user.active else 'Disabled' }}</td><td><a href="?edit={{ user.id }}">Edit</a></td></tr>{% endfor %}</table></div></section><section class="panel"><div class="panel-heading"><h3>{{ 'Edit' if edit else 'Add' }} company user</h3></div><form class="padded form-grid" method="post"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="id" value="{{ edit.id if edit else '' }}"><label class="full">Name<input name="name" value="{{ edit.name if edit else '' }}" required></label><label class="full">Email<input type="email" name="email" value="{{ edit.email if edit else '' }}" required></label><label class="full">{{ 'New password (leave blank to retain)' if edit else 'Password' }}<input type="password" name="password" minlength="12" {{ 'required' if not edit else '' }} autocomplete="new-password"></label><label class="full">Role<select name="role_id">{% for role in roles %}<option value="{{ role.id }}" {{ 'selected' if edit and edit.role_id==role.id else '' }}>{{ role.name }}</option>{% endfor %}</select></label><label class="checkbox full"><input type="checkbox" name="active" value="1" {{ 'checked' if not edit or edit.active else '' }}>Active</label><button class="primary full">Save user</button></form></section></div>{% endblock %}
+{% extends 'base.html' %}
+
+{% block subtitle %}Control team access to your company workspace.{% endblock %}
+
+{% block content %}
+<div class="split-layout">
+  <section class="panel">
+    <div class="panel-heading">
+      <div>
+        <div class="eyebrow">Team Management</div>
+        <h3>Workspace users</h3>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>User</th>
+            <th>Role</th>
+            <th>Status</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for user in users %}
+          <tr>
+            <td>
+              <strong>{{ user.name }}</strong>
+              <small>{{ user.email }}</small>
+            </td>
+            <td>
+              {% for role in roles if role.id == user.role_id %}
+                <span class="badge">{{ role.name }}</span>
+              {% endfor %}
+            </td>
+            <td>
+              <span class="badge {{ 'green' if user.active else '' }}">
+                <span class="dot {{ 'green' if user.active else '' }}"></span>
+                {{ 'Active' if user.active else 'Disabled' }}
+              </span>
+            </td>
+            <td><a href="?edit={{ user.id }}">Edit</a></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-heading">
+      <h3>{{ 'Edit' if edit else 'Add' }} company user</h3>
+    </div>
+    <form class="padded form-grid" method="post">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <input type="hidden" name="id" value="{{ edit.id if edit else '' }}">
+      <label class="full">Name
+        <input name="name" value="{{ edit.name if edit else '' }}" required placeholder="Team member name">
+      </label>
+      <label class="full">Email
+        <input type="email" name="email" value="{{ edit.email if edit else '' }}" required placeholder="member@company.com">
+      </label>
+      <label class="full">{{ 'New password (leave blank to retain)' if edit else 'Password' }}
+        <input type="password" name="password" minlength="12" {{ 'required' if not edit else '' }} autocomplete="new-password">
+        <small>At least 12 characters</small>
+      </label>
+      <label class="full">Role
+        <select name="role_id">
+          {% for role in roles %}
+            <option value="{{ role.id }}" {{ 'selected' if edit and edit.role_id == role.id else '' }}>{{ role.name }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label class="checkbox full">
+        <input type="checkbox" name="active" value="1" {{ 'checked' if not edit or edit.active else '' }}>
+        Active (can sign in to workspace)
+      </label>
+      <div class="full" style="margin-top:8px">
+        <button class="primary full" type="submit">Save user</button>
+      </div>
+    </form>
+  </section>
+</div>
+{% endblock %}

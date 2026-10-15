@@ -1,2 +1,55 @@
-{% extends 'base.html' %}{% from 'macros.html' import invoice_table with context %}{% block actions %}<a class="secondary" href="{{ "/invoices" if request.args.get("trash")=="1" else "/invoices?trash=1" }}">{{ "All invoices" if request.args.get("trash")=="1" else "Trash" }}</a><a href="/billing" class="primary">＋ Create invoice</a>{% endblock %}{% block content %}<article class="panel"><form class="filter-bar">{% if request.args.get("trash")=="1" %}<input type="hidden" name="trash" value="1">{% endif %}<input name="q" placeholder="Invoice or customer…" value="{{ request.args.get('q','') }}"><label>From<input type="date" name="from" value="{{ request.args.get('from','') }}"></label><label>To<input type="date" name="to" value="{{ request.args.get('to','') }}"></label><select name="customer"><option value="">All customers</option>{% for c in customers %}<option value="{{ c.id }}" {{ "selected" if request.args.get("customer")==c.id|string else "" }}>{{ c.name }}</option>{% endfor %}</select><select name="type"><option value="">All invoice types</option>{% for t in ['GST','NON-GST'] %}<option {{ 'selected' if request.args.get('type')==t else '' }}>{{ t }}</option>{% endfor %}</select><select name="payment"><option value="">All payment statuses</option>{% for t in ['PAID','PARTIAL','UNPAID'] %}<option {{ 'selected' if request.args.get('payment')==t else '' }}>{{ t }}</option>{% endfor %}</select><button class="secondary">Filter</button><a href="/invoices">Reset</a></form>{{ invoice_table(rows, actions=True) }}</article>{% endblock %}
+{% extends 'base.html' %}
+{% from 'macros.html' import invoice_table with context %}
 
+{% block actions %}
+  <a class="secondary" href="{{ '/invoices' if request.args.get('trash') == '1' else '/invoices?trash=1' }}">
+    {% if request.args.get('trash') == '1' %}
+      All invoices
+    {% else %}
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+      Trash
+    {% endif %}
+  </a>
+  <a href="/billing" class="primary">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
+    Create invoice
+  </a>
+{% endblock %}
+
+{% block content %}
+<article class="panel">
+  <form class="filter-bar">
+    {% if request.args.get('trash') == '1' %}
+      <input type="hidden" name="trash" value="1">
+    {% endif %}
+    <input name="q" placeholder="Invoice or customer…" value="{{ request.args.get('q','') }}">
+    <label>From
+      <input type="date" name="from" value="{{ request.args.get('from','') }}">
+    </label>
+    <label>To
+      <input type="date" name="to" value="{{ request.args.get('to','') }}">
+    </label>
+    <select name="customer">
+      <option value="">All customers</option>
+      {% for c in customers %}
+        <option value="{{ c.id }}" {{ 'selected' if request.args.get('customer') == c.id|string else '' }}>{{ c.name }}</option>
+      {% endfor %}
+    </select>
+    <select name="type">
+      <option value="">All invoice types</option>
+      {% for t in ['GST','NON-GST'] %}
+        <option {{ 'selected' if request.args.get('type') == t else '' }}>{{ t }}</option>
+      {% endfor %}
+    </select>
+    <select name="payment">
+      <option value="">All payment statuses</option>
+      {% for t in ['PAID','PARTIAL','UNPAID'] %}
+        <option {{ 'selected' if request.args.get('payment') == t else '' }}>{{ t }}</option>
+      {% endfor %}
+    </select>
+    <button class="secondary" type="submit">Filter</button>
+    <a href="/invoices" class="text-button">Reset</a>
+  </form>
+  {{ invoice_table(rows, actions=True) }}
+</article>
+{% endblock %}

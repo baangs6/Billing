@@ -1,1 +1,24 @@
-{% extends 'base.html' %}{% block subtitle %}Choose an available page from your workspace navigation.{% endblock %}{% block content %}<section class="panel"><div class="panel-heading"><h3>{{ policy.user.name }}</h3><span class="badge green">{{ policy.state }}</span></div><div class="padded"><p>Your role controls which company operations you can access.</p><div class="toolbar">{% for endpoint,label,icon in nav if endpoint!='dashboard' %}<a class="secondary" href="{{ url_for(endpoint) }}">{{ label }} →</a>{% endfor %}</div></div></section>{% endblock %}
+{% extends 'base.html' %}
+{% block subtitle %}Choose an available page from your workspace navigation.{% endblock %}
+{% block content %}
+<section class="panel">
+  <div class="panel-heading">
+    <div>
+      <span class="step-tag">Access Limited</span>
+      <h3 style="margin-top: 4px;">{{ policy.user.name }}</h3>
+    </div>
+    <span class="badge green"><span class="status-dot green"></span>{{ policy.state }}</span>
+  </div>
+  <div class="padded" style="display: flex; flex-direction: column; gap: 16px;">
+    <p class="muted">Your assigned role controls which company operations you can access in this workspace.</p>
+    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; margin-top: 8px;">
+      {% for endpoint,label,icon in nav if endpoint!='dashboard' %}
+        <a class="nav-card" href="{{ url_for(endpoint) }}" style="display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface); color: var(--text); font-weight: 600; text-decoration: none; transition: all var(--trans);">
+          <span>{{ label }}</span>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--muted);"><polyline points="9 18 15 12 9 6"></polyline></svg>
+        </a>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+{% endblock %}

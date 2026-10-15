@@ -1,1 +1,116 @@
-{% extends 'admin/base.html' %}{% block subtitle %}Publish configurable rules. Existing subscribers retain their assigned version.{% endblock %}{% block content %}<div class="hint" style="margin-bottom:24px">Trial is time-limited. Subscription and Unlimited are available free during launch. Set monthly/yearly prices here when you are ready to charge; existing assignments retain their saved terms. Unlimited removes usage quotas, while subscription expiry still follows the billing cycle.</div><section class="panel"><div class="panel-heading"><h3>Plans</h3><a href="/plans">New plan</a></div><div class="table-wrap"><table><tr><th>Plan / version</th><th>Monthly</th><th>Yearly</th><th>Trial</th><th>Usage limits</th><th>Status</th><th></th></tr>{% for row in plans %}<tr><td>{{ row.name }}<small>Version {{ row.version }}</small></td><td>{{ row.monthly_price|inr }}</td><td>{{ row.yearly_price|inr }}</td><td>{{ row.trial_days }} days</td><td>{% for field,label in [('users','users'),('products','products'),('invoices','invoices/month')] %}<small>{{ 'Unlimited' if row.limits[field]==none else row.limits[field] }} {{ label }}</small>{% endfor %}</td><td>{{ 'Available' if row.active else 'Draft / disabled' }}</td><td><a href="?edit={{ row.id }}">Edit</a></td></tr>{% endfor %}</table></div></section><section class="panel"><div class="panel-heading"><h3>{{ 'Edit plan' if edit else 'Create plan' }}</h3></div><form method="post" class="padded form-grid three"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="id" value="{{ edit.id if edit else '' }}"><label>Plan name<input name="name" required value="{{ edit.name if edit else '' }}"></label><label>Monthly price (INR)<input type="number" min="0" step="0.01" name="monthly_price" required value="{{ edit.monthly_price/100 if edit else 0 }}"></label><label>Yearly price (INR)<input type="number" min="0" step="0.01" name="yearly_price" required value="{{ edit.yearly_price/100 if edit else 0 }}"></label><label>Trial days<input type="number" name="trial_days" min="0" max="365" required value="{{ edit.trial_days if edit else 14 }}"></label>{% for field,label in [('users','Maximum active users'),('products','Maximum active products'),('invoices','Invoices finalized per month')] %}<label>{{ label }}<input type="number" min="0" name="max_{{ field }}" value="{{ edit.limits[field] if edit and edit.limits[field]!=none else '' }}"><small>Blank = unlimited. Zero = no allowance.</small><span class="limit-toggle"><input type="checkbox" name="unlimited_{{ field }}" value="1" data-unlimited="max_{{ field }}" {{ 'checked' if edit and edit.limits[field]==none else '' }}> Unlimited</span></label>{% endfor %}<label class="full">Description<textarea name="description" maxlength="300">{{ edit.description if edit else '' }}</textarea></label>{% for code,label in features.items() %}<label class="checkbox"><input type="checkbox" name="{{ code }}" value="1" {{ 'checked' if not edit or edit.features[code] else '' }}>{{ label }}</label>{% endfor %}<label class="checkbox"><input type="checkbox" name="active" value="1" {{ 'checked' if not edit or edit.active else '' }}>Available for new subscriptions</label><div class="full"><button class="primary">Save plan version</button></div></form></section>{% endblock %}
+{% extends 'admin/base.html' %}
+
+{% block subtitle %}Publish configurable rules. Existing subscribers retain their assigned version.{% endblock %}
+
+{% block content %}
+<div class="hint" style="margin-bottom:24px">
+  Trial is time-limited. Subscription and Unlimited are available free during launch. Set monthly/yearly prices here when you are ready to charge; existing assignments retain their saved terms. Unlimited removes usage quotas, while subscription expiry still follows the billing cycle.
+</div>
+
+<section class="panel">
+  <div class="panel-heading">
+    <div>
+      <div class="eyebrow">Pricing Architecture</div>
+      <h3>Subscription plans</h3>
+    </div>
+    <a href="/plans" class="primary">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
+      New plan
+    </a>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Plan / Version</th>
+          <th>Monthly</th>
+          <th>Yearly</th>
+          <th>Trial</th>
+          <th>Usage Limits</th>
+          <th>Status</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in plans %}
+        <tr>
+          <td>
+            <strong>{{ row.name }}</strong>
+            <small>Version {{ row.version }}</small>
+          </td>
+          <td><strong>{{ row.monthly_price|inr }}</strong></td>
+          <td><strong>{{ row.yearly_price|inr }}</strong></td>
+          <td>{{ row.trial_days }} days</td>
+          <td>
+            {% for field, label in [('users','users'),('products','products'),('invoices','invoices/month')] %}
+              <small>{{ 'Unlimited' if row.limits[field] == none else row.limits[field] }} {{ label }}</small>
+            {% endfor %}
+          </td>
+          <td>
+            <span class="badge {{ 'green' if row.active else '' }}">
+              <span class="dot {{ 'green' if row.active else '' }}"></span>
+              {{ 'Available' if row.active else 'Draft / Disabled' }}
+            </span>
+          </td>
+          <td><a href="?edit={{ row.id }}">Edit</a></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="panel">
+  <div class="panel-heading">
+    <h3>{{ 'Edit plan' if edit else 'Create plan' }}</h3>
+  </div>
+  <form method="post" class="padded form-grid three">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <input type="hidden" name="id" value="{{ edit.id if edit else '' }}">
+    <label>Plan name
+      <input name="name" required value="{{ edit.name if edit else '' }}" placeholder="e.g. Starter, Growth, Enterprise">
+    </label>
+    <label>Monthly price (INR)
+      <input type="number" min="0" step="0.01" name="monthly_price" required value="{{ edit.monthly_price / 100 if edit else 0 }}">
+    </label>
+    <label>Yearly price (INR)
+      <input type="number" min="0" step="0.01" name="yearly_price" required value="{{ edit.yearly_price / 100 if edit else 0 }}">
+    </label>
+    <label>Trial days
+      <input type="number" name="trial_days" min="0" max="365" required value="{{ edit.trial_days if edit else 14 }}">
+    </label>
+
+    {% for field, label in [('users','Maximum active users'),('products','Maximum active products'),('invoices','Invoices finalized per month')] %}
+      <label>{{ label }}
+        <input type="number" min="0" name="max_{{ field }}" value="{{ edit.limits[field] if edit and edit.limits[field] != none else '' }}">
+        <small>Blank = unlimited. Zero = no allowance.</small>
+        <span class="limit-toggle" style="margin-top:4px">
+          <input type="checkbox" name="unlimited_{{ field }}" value="1" data-unlimited="max_{{ field }}" {{ 'checked' if edit and edit.limits[field] == none else '' }}> Unlimited
+        </span>
+      </label>
+    {% endfor %}
+
+    <label class="full">Description
+      <textarea name="description" maxlength="300" placeholder="Summary of what this plan includes…">{{ edit.description if edit else '' }}</textarea>
+    </label>
+
+    <div class="full" style="display:flex;flex-wrap:wrap;gap:14px;margin:8px 0">
+      {% for code, label in features.items() %}
+        <label class="checkbox">
+          <input type="checkbox" name="{{ code }}" value="1" {{ 'checked' if not edit or edit.features[code] else '' }}>
+          <span>{{ label }}</span>
+        </label>
+      {% endfor %}
+    </div>
+
+    <label class="checkbox full">
+      <input type="checkbox" name="active" value="1" {{ 'checked' if not edit or edit.active else '' }}>
+      Available for new company registrations
+    </label>
+
+    <div class="full">
+      <button class="primary" type="submit">Save plan version</button>
+    </div>
+  </form>
+</section>
+{% endblock %}

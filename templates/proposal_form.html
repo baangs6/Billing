@@ -1,2 +1,132 @@
-{% extends 'base.html' %}{% block subtitle %}Create a quotation without affecting stock or payments.{% endblock %}{% block content %}<form method="post" id="billing-form"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="id" value="{{ edit.id if edit and not duplicate else '' }}"><input type="hidden" name="version" value="{{ edit.version if edit else '' }}"><input type="hidden" name="submission" value="{{ submission }}"><input type="hidden" name="items" id="items-json"><script type="application/json" id="billing-data">{{ {'products':products,'customers':customers,'business':business,'items':edit['items'] if edit else [],'duplicate':duplicate}|tojson }}</script><article class="panel"><div class="panel-heading"><h3>01 <span class="muted">/</span> Customer & proposal details</h3><a href="/customers">＋ Add customer</a></div><div class="form-grid three padded"><label class="full">Proposal title<input name="title" required maxlength="150" value="{{ edit.title if edit else '' }}" placeholder="e.g. Shop equipment supply and installation"></label><label>Valid through<input type="date" name="valid_until" required value="{{ edit.valid_until if edit else valid_until }}"></label><label>Prepared for<select id="customer" name="customer" required><option value="">Select a customer</option>{% for c in customers %}<option value="{{ c.id }}" {{ 'selected' if edit and edit.customer_id==c.id else '' }}>{{ c.name }}</option>{% endfor %}</select><small id="customer-info"></small></label><label>Proposal date<input type="date" name="date" value="{{ edit.date if edit and not duplicate else today }}" required></label><label>Tax treatment<select id="invoice-type" name="type">{% if policy.features.gst %}<option value="GST" {{ 'selected' if edit and edit.type=='GST' else '' }}>GST quotation</option>{% endif %}<option value="NON-GST" {{ 'selected' if edit and edit.type=='NON-GST' else '' }}>Non-GST quotation</option></select></label><div class="hint">Proposal numbering is automatic.<br>No stock or payment changes on save.</div></div></article><article class="panel"><div class="panel-heading"><h3>02 <span class="muted">/</span> Proposal items</h3><button type="button" id="manual-item" class="secondary">＋ Manual item / service</button></div><div class="product-picker"><select id="product-picker"><option value="">Choose a product to add…</option>{% for p in products if p.active %}<option value="{{ p.id }}">{{ p.name }} · {{ p.sku }} · {{ p.quantity|qty }} available · {{ p.selling_price|inr }}</option>{% endfor %}</select><button type="button" id="add-product" class="primary">＋ Add product</button></div><div class="table-wrap"><table class="billing-table"><thead><tr><th>Item / HSN</th><th>Qty</th><th>Rate ₹</th><th>MRP ₹</th><th>Discount ₹</th><th>GST %</th><th>Total</th><th></th></tr></thead><tbody id="item-rows"></tbody></table></div><div id="billing-empty" class="empty">Select a product above, or add a manual item to begin.</div></article><div class="billing-bottom"><article class="panel"><div class="panel-heading"><h3>03 <span class="muted">/</span> Scope & terms</h3></div><div class="form-grid padded"><input type="hidden" id="received" value="0"><label class="full">Scope / description<textarea name="description" rows="4" maxlength="2500">{{ edit.description if edit else '' }}</textarea></label><label class="full">Terms & conditions<textarea rows="4" name="terms">{{ edit.snapshot.terms if edit else business.terms }}</textarea></label></div></article><article class="panel total-card"><h3>Proposal summary</h3><div id="calculation"></div><div class="summary-line"><span>Proposed total</span><strong id="balance">₹0.00</strong></div><button class="primary full" type="submit">Save proposal →</button><small>Download the proposal PDF or review an invoice conversion after saving.</small></article></div></form>{% endblock %}
+{% extends 'base.html' %}
 
+{% block subtitle %}Create a quotation without affecting stock or payments.{% endblock %}
+
+{% block content %}
+<form method="post" id="billing-form">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <input type="hidden" name="id" value="{{ edit.id if edit and not duplicate else '' }}">
+  <input type="hidden" name="version" value="{{ edit.version if edit else '' }}">
+  <input type="hidden" name="submission" value="{{ submission }}">
+  <input type="hidden" name="items" id="items-json">
+  <script type="application/json" id="billing-data">{{ {'products':products,'customers':customers,'business':business,'items':edit['items'] if edit else [],'duplicate':duplicate}|tojson }}</script>
+
+  <article class="panel">
+    <div class="panel-heading">
+      <div>
+        <div class="eyebrow">Step 01</div>
+        <h3>Customer & proposal details</h3>
+      </div>
+      <a href="/customers" class="secondary">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
+        Add customer
+      </a>
+    </div>
+    <div class="form-grid three padded">
+      <label class="full">Proposal title
+        <input name="title" required maxlength="150" value="{{ edit.title if edit else '' }}" placeholder="e.g. Shop equipment supply and installation">
+      </label>
+      <label>Valid through
+        <input type="date" name="valid_until" required value="{{ edit.valid_until if edit else valid_until }}">
+      </label>
+      <label>Prepared for
+        <select id="customer" name="customer" required>
+          <option value="">Select a customer</option>
+          {% for c in customers %}
+            <option value="{{ c.id }}" {{ 'selected' if edit and edit.customer_id == c.id else '' }}>{{ c.name }}</option>
+          {% endfor %}
+        </select>
+        <small id="customer-info"></small>
+      </label>
+      <label>Proposal date
+        <input type="date" name="date" value="{{ edit.date if edit and not duplicate else today }}" required>
+      </label>
+      <label>Tax treatment
+        <select id="invoice-type" name="type">
+          {% if policy.features.gst %}
+            <option value="GST" {{ 'selected' if edit and edit.type == 'GST' else '' }}>GST quotation</option>
+          {% endif %}
+          <option value="NON-GST" {{ 'selected' if edit and edit.type == 'NON-GST' else '' }}>Non-GST quotation</option>
+        </select>
+      </label>
+      <div class="hint">Proposal numbering is automatic.<br>No inventory or payment adjustments are made on save.</div>
+    </div>
+  </article>
+
+  <article class="panel">
+    <div class="panel-heading">
+      <div>
+        <div class="eyebrow">Step 02</div>
+        <h3>Proposal items</h3>
+      </div>
+      <button type="button" id="manual-item" class="secondary">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
+        Manual item / service
+      </button>
+    </div>
+    <div class="product-picker">
+      <select id="product-picker">
+        <option value="">Choose a product to add…</option>
+        {% for p in products if p.active %}
+          <option value="{{ p.id }}">{{ p.name }} · {{ p.sku }} · {{ p.quantity|qty }} available · {{ p.selling_price|inr }}</option>
+        {% endfor %}
+      </select>
+      <button type="button" id="add-product" class="primary">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
+        Add product
+      </button>
+    </div>
+    <div class="table-wrap">
+      <table class="billing-table">
+        <thead>
+          <tr>
+            <th>Item / HSN</th>
+            <th>Qty</th>
+            <th>Rate ₹</th>
+            <th>MRP ₹</th>
+            <th>Discount ₹</th>
+            <th>GST %</th>
+            <th>Total</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="item-rows"></tbody>
+      </table>
+    </div>
+    <div id="billing-empty" class="empty">Select a product above, or add a manual item to begin.</div>
+  </article>
+
+  <div class="billing-bottom">
+    <article class="panel">
+      <div class="panel-heading">
+        <div>
+          <div class="eyebrow">Step 03</div>
+          <h3>Scope & terms</h3>
+        </div>
+      </div>
+      <div class="form-grid padded">
+        <input type="hidden" id="received" value="0">
+        <label class="full">Scope / description
+          <textarea name="description" rows="4" maxlength="2500">{{ edit.description if edit else '' }}</textarea>
+        </label>
+        <label class="full">Terms & conditions
+          <textarea rows="4" name="terms">{{ edit.snapshot.terms if edit else business.terms }}</textarea>
+        </label>
+      </div>
+    </article>
+
+    <article class="panel total-card">
+      <div class="panel-heading" style="padding:0 0 16px;border-bottom:1px solid var(--line)">
+        <h3>Proposal summary</h3>
+      </div>
+      <div id="calculation"></div>
+      <div class="summary-line grand">
+        <span>Proposed total</span>
+        <strong id="balance">₹0.00</strong>
+      </div>
+      <button class="primary full" type="submit">Save proposal →</button>
+      <small style="display:block;text-align:center;color:var(--muted)">Download the proposal PDF or convert to invoice after saving.</small>
+    </article>
+  </div>
+</form>
+{% endblock %}

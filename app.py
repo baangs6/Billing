@@ -379,15 +379,33 @@ def create_app(database=None, backend=None):
             flash('Customer updated.'); return redirect(url_for('customers'))
         rows=db().find('customers',{'archived':0},sort=[('name',1)])
         balances={}
+        last_invoices={}
         for inv in all_invoices():
-            if inv['status']=='FINAL': balances[inv['customer_id']]=balances.get(inv['customer_id'],0)+inv['balance']
-        for r in rows: r['balance']=balances.get(r['id'],0)
+            cid = inv.get('customer_id')
+            if inv['status']=='FINAL':
+                balances[cid]=balances.get(cid,0)+inv['balance']
+            if cid:
+                if cid not in last_invoices or inv.get('date', '') > last_invoices[cid].get('date', ''):
+                    last_invoices[cid] = inv
+        for r in rows:
+            r['balance']=balances.get(r['id'],0)
+            r['last_invoice']=last_invoices.get(r['id'])
+        if request.args.get('export')=='csv':
+            output = io.StringIO()
+            writer = csv.writer(output)
+            writer.writerow(['ID', 'Customer Name', 'Phone', 'Email', 'Address', 'State', 'PIN', 'GSTIN', 'Balance', 'Notes'])
+            for r in rows:
+                writer.writerow([r['id'], r['name'], r['data'].get('phone',''), r['data'].get('email',''), r['data'].get('address',''), r['data'].get('state',''), r['data'].get('pin',''), r['data'].get('gstin',''), f"{r['balance']/100:.2f}", r['data'].get('notes','')])
+            return Response(output.getvalue(), mimetype='text/csv', headers={'Content-Disposition': 'attachment; filename="customers.csv"'})
         edit=owned('customers',request.args['edit']) if request.args.get('edit') else None
         if edit: edit['data']=dict(edit['data'])
         history=[i for i in all_invoices() if str(i['customer_id'])==request.args.get('view')] if request.args.get('view') else []
         profile=owned('customers',request.args['view']) if request.args.get('view') else None
         if profile: profile['data']=dict(profile['data'])
-        return render_template('customers.html',title='Customers',rows=rows,edit=edit,history=history,profile=profile)
+        history_inv_ids = {inv['id'] for inv in history}
+        cust_payments = [p for p in db().find('payments',sort=[('date',-1)]) if p.get('invoice_id') in history_inv_ids] if history else []
+        cust_proposals = [p for p in db().find('proposals',{'customer_id':profile['id'],'deleted':{'$ne':True}},sort=[('created_at',-1)])] if profile else []
+        return render_template('customers.html',title='Customers',rows=rows,edit=edit,history=history,profile=profile,cust_payments=cust_payments,cust_proposals=cust_proposals)
 
     def import_products():
         from product_import import read_products
@@ -503,10 +521,17 @@ def create_app(database=None, backend=None):
             db().update('proposals',{'id':proposal['id']},{'status':stage},inc={'version':1})
             audit('stage','proposal',proposal['id'],json.dumps(dict(previous=proposal['status'],current=stage)))
             flash('Proposal stage updated.'); return redirect(url_for('proposals'))
-        rows=db().find('proposals',sort=[('id',-1)])
+        all_rows=db().find('proposals',sort=[('id',-1)])
         query=request.args.get('q','').strip().lower(); status=request.args.get('status','')
-        rows=[row for row in rows if query in (row['number']+' '+row['title']+' '+row['snapshot']['customer']['name']).lower() and (not status or row['status']==status)]
-        return render_template('proposals.html',title='Proposals',rows=rows)
+        rows=[row for row in all_rows if query in (row['number']+' '+row['title']+' '+row['snapshot']['customer']['name']).lower() and (not status or row['status']==status)]
+        if request.args.get('export')=='csv':
+            import csv
+            headers=['Proposal','Title','Customer','Date','Valid until','Status','Total (INR)']
+            data=[[r['number'],r['title'],r['snapshot']['customer']['name'],r['date'],r['valid_until'],r['status'],f"{r['total']/100:.2f}"] for r in rows]
+            output=io.StringIO(); writer=csv.writer(output)
+            writer.writerow(headers); writer.writerows(data)
+            return Response('\ufeff'+output.getvalue(),mimetype='text/csv',headers={'Content-Disposition':'attachment; filename=proposals.csv'})
+        return render_template('proposals.html',title='Proposals',rows=rows,all_proposals=all_rows)
 
     @app.route('/proposals/new',methods=['GET','POST'])
     def proposal_form():

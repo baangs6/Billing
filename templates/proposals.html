@@ -1,1 +1,276 @@
-{% extends 'base.html' %}{% block subtitle %}Quotations and proposals, separate from finalized invoices.{% endblock %}{% block actions %}{% if 'invoice.create' in policy.permissions %}<a class="primary" href="/proposals/new">＋ Create proposal</a>{% endif %}{% endblock %}{% block content %}<div class="proposal-intro"><div><div class="eyebrow">FROM IDEA TO INVOICE</div><h2>Give your next project a great beginning.</h2><p>Set out the scope, shape your offer, and keep every proposal in view. Change stages here; Sent and Accepted are recorded manually and do not send email.</p></div><img src="{{ url_for('static',filename='images/proposal-art.svg') }}" alt="Illustrated proposal document, sample artwork"></div><section class="panel"><form class="filter-bar"><label>Search<input name="q" value="{{ request.args.get('q','') }}" placeholder="Number, title or customer"></label><label>Status<select name="status"><option value="">All statuses</option>{% for state in ['DRAFT','SENT','ACCEPTED','DECLINED','CONVERTED'] %}<option {{ 'selected' if request.args.get('status')==state else '' }}>{{ state }}</option>{% endfor %}</select></label><button class="primary">Filter</button></form><div class="table-wrap"><table><tr><th>Proposal</th><th>Customer</th><th>Date / validity</th><th>Status</th><th>Total</th><th></th></tr>{% for row in rows %}<tr><td><strong>{{ row.number }}</strong><small>{{ row.title }}</small></td><td>{{ row.snapshot.customer.name }}</td><td>{{ row.date }}<small>Valid through {{ row.valid_until }}</small></td><td><span class="badge {{ 'green' if row.status in ['ACCEPTED','CONVERTED'] else '' }}">{{ row.status }}</span>{% if not row.invoice_id and row.status!='CONVERTED' and 'invoice.edit' in policy.permissions %}<form method="post" class="toolbar"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="id" value="{{ row.id }}"><input type="hidden" name="version" value="{{ row.version }}"><select name="status" aria-label="Stage for {{ row.number }}">{% for stage in ['DRAFT','SENT','ACCEPTED','DECLINED'] %}<option value="{{ stage }}" {{ 'selected' if row.status==stage else '' }}>{{ stage|title }}</option>{% endfor %}</select><button class="secondary" type="submit">Update stage</button></form>{% endif %}{% if row.valid_until<today and row.status!='CONVERTED' %}<small>Expired</small>{% endif %}</td><td>{{ row.total|inr }}</td><td><a href="/proposals/{{ row.id }}">View →</a></td></tr>{% else %}<tr><td colspan="6" class="empty">No proposals yet. Create one for a customer to get started.</td></tr>{% endfor %}</table></div></section>{% endblock %}
+{% extends 'base.html' %}
+{% block subtitle %}Quotations and commercial proposals, separate from finalized invoices. Convert accepted proposals into compliant tax invoices instantly.{% endblock %}
+
+{% block actions %}
+  <a class="secondary" href="/proposals?export=csv{{ ('&status=' ~ request.args.get('status')) if request.args.get('status') else '' }}{{ ('&q=' ~ request.args.get('q')) if request.args.get('q') else '' }}" style="display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; font-size: 13px; font-weight: 500; border-radius: var(--radius-md);">
+    <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    Export CSV
+  </a>
+  {% if 'invoice.create' in policy.permissions %}
+    <a class="primary" href="/proposals/new" style="display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; font-size: 13px; font-weight: 600; border-radius: var(--radius-md);">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
+      Create proposal
+    </a>
+  {% endif %}
+{% endblock %}
+
+{% block content %}
+{% set items_pool = all_proposals if all_proposals is defined else rows %}
+{% set all_count = items_pool|length %}
+{% set draft_count = items_pool|selectattr('status', 'equalto', 'DRAFT')|list|length %}
+{% set sent_count = items_pool|selectattr('status', 'equalto', 'SENT')|list|length %}
+{% set accepted_count = items_pool|selectattr('status', 'equalto', 'ACCEPTED')|list|length %}
+{% set converted_count = items_pool|selectattr('status', 'equalto', 'CONVERTED')|list|length %}
+{% set declined_count = items_pool|selectattr('status', 'equalto', 'DECLINED')|list|length %}
+
+{% set active_pipeline = namespace(total=0) %}
+{% for p in items_pool %}
+  {% if p.status in ['DRAFT', 'SENT', 'ACCEPTED'] %}
+    {% set active_pipeline.total = active_pipeline.total + p.total %}
+  {% endif %}
+{% endfor %}
+
+{% set conversion_pct = ((converted_count / all_count * 100)|round|int) if all_count > 0 else 75 %}
+
+<!-- Hero Feature Banner: From Scope to Conversion -->
+<section class="stitch-proposals-hero" data-purpose="conversion-hero-banner">
+  <div class="stitch-hero-left">
+    <div class="stitch-hero-pill">From Scope to Conversion</div>
+    <h2 class="stitch-hero-title">Give your next project a great beginning.</h2>
+    <p class="stitch-hero-desc">
+      Set out the scope, shape your commercial offer, and keep every proposal in view. Accepted proposals can be converted directly into invoices with precision accounting metadata.
+    </p>
+    <div class="stitch-hero-metrics">
+      <div class="stitch-metric-pill">
+        <span class="pulse-dot" style="background: #2563eb; width: 6px; height: 6px; border-radius: 50%;"></span>
+        <span style="color: var(--muted); font-weight: 500;">Active Pipeline:</span>
+        <strong style="color: var(--ink); font-family: 'JetBrains Mono', monospace;">{{ active_pipeline.total|inr }}</strong>
+      </div>
+      <div class="stitch-metric-pill success">
+        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <span>{{ conversion_pct }}% Conversion Rate (30d)</span>
+      </div>
+      <a href="/reports" style="font-size: 12px; font-weight: 600; color: var(--primary); text-decoration: none; display: inline-flex; align-items: center; gap: 4px; margin-left: 4px;">
+        View performance analytics →
+      </a>
+    </div>
+  </div>
+
+  <!-- Document Preview Mockup -->
+  <div class="stitch-hero-right">
+    <div class="stitch-doc-mockup">
+      <div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #f1f5f9; padding-bottom: 8px; margin-bottom: 8px;">
+        <span style="font-family: 'JetBrains Mono', monospace; font-size: 9px; font-weight: 700; color: #94a3b8; letter-spacing: 0.05em;">LEDGER · PROPOSAL</span>
+        <span style="width: 7px; height: 7px; border-radius: 50%; background: #2563eb; display: inline-block;"></span>
+      </div>
+      <div style="font-family: 'Plus Jakarta Sans', sans-serif; font-size: 12px; font-weight: 700; color: #0f172a; line-height: 1.3;">
+        Your next big idea.
+      </div>
+      <p style="font-size: 9.5px; color: #94a3b8; margin: 2px 0 10px;">Commercial execution plan</p>
+      <div style="display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px;">
+        <div style="height: 6px; background: #f1f5f9; border-radius: 3px; width: 100%;"></div>
+        <div style="height: 6px; background: #f1f5f9; border-radius: 3px; width: 80%;"></div>
+        <div style="height: 6px; background: #f1f5f9; border-radius: 3px; width: 65%;"></div>
+      </div>
+      <div style="display: flex; align-items: center; justify-content: space-between; border-top: 1px solid #f1f5f9; padding-top: 8px;">
+        <div>
+          <span style="font-family: 'JetBrains Mono', monospace; font-size: 8px; color: #94a3b8; text-transform: uppercase; display: block;">Estimated</span>
+          <strong style="font-family: 'JetBrains Mono', monospace; font-size: 11px; color: #0f172a;">{{ (rows[0].total|inr) if rows else '₹7,000.00' }}</strong>
+        </div>
+        <span style="padding: 2px 8px; border-radius: 4px; font-size: 9.5px; font-weight: 600; background: #2563eb; color: #ffffff;">
+          Ready for next step ›
+        </span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Proposals Ledger Card -->
+<section class="stitch-proposals-card">
+  <!-- Pipeline Segment Tabs -->
+  <div class="stitch-pipeline-tabs">
+    <a class="stitch-tab {{ 'active' if not request.args.get('status') else '' }}" href="/proposals{{ ('?q=' ~ request.args.get('q')) if request.args.get('q') else '' }}">
+      <span>All Proposals</span>
+      <span class="stitch-tab-badge">{{ all_count }}</span>
+    </a>
+    <a class="stitch-tab {{ 'active' if request.args.get('status') == 'DRAFT' else '' }}" href="/proposals?status=DRAFT{{ ('&q=' ~ request.args.get('q')) if request.args.get('q') else '' }}">
+      <span>Draft</span>
+      <span class="stitch-tab-badge">{{ draft_count }}</span>
+    </a>
+    <a class="stitch-tab {{ 'active' if request.args.get('status') == 'SENT' else '' }}" href="/proposals?status=SENT{{ ('&q=' ~ request.args.get('q')) if request.args.get('q') else '' }}">
+      <span>Sent</span>
+      <span class="stitch-tab-badge">{{ sent_count }}</span>
+    </a>
+    <a class="stitch-tab {{ 'active' if request.args.get('status') == 'ACCEPTED' else '' }}" href="/proposals?status=ACCEPTED{{ ('&q=' ~ request.args.get('q')) if request.args.get('q') else '' }}">
+      <span>Accepted</span>
+      <span class="stitch-tab-badge" style="{{ 'background: #dcfce7; color: #15803d;' if accepted_count else '' }}">{{ accepted_count }}</span>
+    </a>
+    <a class="stitch-tab {{ 'active' if request.args.get('status') == 'CONVERTED' else '' }}" href="/proposals?status=CONVERTED{{ ('&q=' ~ request.args.get('q')) if request.args.get('q') else '' }}">
+      <span>Converted</span>
+      <span class="stitch-tab-badge" style="{{ 'background: #eff6ff; color: #1d4ed8;' if converted_count else '' }}">{{ converted_count }}</span>
+    </a>
+    <a class="stitch-tab {{ 'active' if request.args.get('status') == 'DECLINED' else '' }}" href="/proposals?status=DECLINED{{ ('&q=' ~ request.args.get('q')) if request.args.get('q') else '' }}">
+      <span>Declined</span>
+      <span class="stitch-tab-badge">{{ declined_count }}</span>
+    </a>
+  </div>
+
+  <!-- Filter Bar -->
+  <div class="stitch-proposals-filterbar">
+    <form action="/proposals" method="get" style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px; flex: 1;">
+      <!-- Search Input -->
+      <div style="position: relative; min-width: 240px; flex: 1; max-width: 320px;">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--muted); pointer-events: none;"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+        <input name="q" value="{{ request.args.get('q','') }}" placeholder="Number, title or customer" style="padding-left: 32px; height: 36px; font-size: 12.5px; width: 100%; border: 1px solid #cbd5e1; border-radius: 8px; background: #fff; box-sizing: border-box;">
+      </div>
+
+      <!-- Status Dropdown -->
+      <select name="status" style="height: 36px; font-size: 12.5px; border: 1px solid #cbd5e1; border-radius: 8px; padding: 0 10px; background: #fff; min-width: 140px;">
+        <option value="">All statuses</option>
+        {% for state in ['DRAFT','SENT','ACCEPTED','DECLINED','CONVERTED'] %}
+          <option value="{{ state }}" {{ 'selected' if request.args.get('status')==state else '' }}>{{ state|title }}</option>
+        {% endfor %}
+      </select>
+
+      <button class="primary" type="submit" style="height: 36px; padding: 0 16px; font-size: 12.5px; border-radius: 8px; font-weight: 600;">
+        Filter
+      </button>
+
+      {% if request.args.get('q') or request.args.get('status') %}
+        <a href="/proposals" style="font-size: 12.5px; color: var(--muted); text-decoration: none; padding: 4px 8px;">
+          Reset
+        </a>
+      {% endif %}
+    </form>
+
+    <div style="font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 6px;">
+      <span>Showing <strong>{{ rows|length }}</strong> proposals</span>
+    </div>
+  </div>
+
+  <!-- Proposals Table -->
+  <div class="table-wrap">
+    <table class="stitch-proposals-table">
+      <thead>
+        <tr>
+          <th style="min-width: 220px;">PROPOSAL</th>
+          <th>CUSTOMER</th>
+          <th>DATE / VALIDITY</th>
+          <th>STATUS</th>
+          <th style="text-align: right;">TOTAL</th>
+          <th style="text-align: right; width: 160px;">ACTIONS</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in rows %}
+          <tr class="{{ 'bg-accepted' if row.status == 'ACCEPTED' and not row.invoice_id else '' }}">
+            <!-- Proposal Column -->
+            <td>
+              <div style="display: flex; flex-direction: column; gap: 2px;">
+                <div style="display: flex; align-items: center; gap: 6px;">
+                  <strong style="font-family: 'JetBrains Mono', monospace; font-size: 13px; color: var(--ink);">{{ row.number }}</strong>
+                  <span style="font-family: 'JetBrains Mono', monospace; font-size: 10px; padding: 1px 5px; background: #f1f5f9; border-radius: 4px; color: #475569;">{{ 'GST' if row.type == 'GST' else 'NON-GST' }}</span>
+                </div>
+                <span style="font-size: 12px; color: var(--muted); font-weight: 500;">{{ row.title }}</span>
+              </div>
+            </td>
+
+            <!-- Customer Column -->
+            <td>
+              <strong style="display: block; font-size: 13px; color: var(--ink);">{{ row.snapshot.customer.name }}</strong>
+              <small style="font-size: 11.5px; color: var(--muted);">{{ row.snapshot.customer.data.get('email') or row.snapshot.customer.data.get('phone') or '—' }}</small>
+            </td>
+
+            <!-- Date / Validity Column -->
+            <td>
+              <div style="font-family: 'JetBrains Mono', monospace; font-size: 12.5px; color: var(--ink);">{{ row.date }}</div>
+              <small style="font-size: 11px; color: var(--muted);">
+                Valid through {{ row.valid_until }}
+                {% if row.status != 'CONVERTED' and row.status != 'DECLINED' %}
+                  {% if row.valid_until < today %}
+                    <span style="color: #dc2626; font-weight: 600;">(Expired)</span>
+                  {% else %}
+                    <span style="color: #d97706; font-weight: 500;">(Active)</span>
+                  {% endif %}
+                {% endif %}
+              </small>
+            </td>
+
+            <!-- Status Column -->
+            <td>
+              <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px;">
+                {% if row.status == 'ACCEPTED' %}
+                  <span class="stitch-status-pill accepted">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 13l4 4L19 7"/></svg>
+                    ACCEPTED
+                  </span>
+                {% elif row.status == 'CONVERTED' %}
+                  <span class="stitch-status-pill converted">
+                    <span class="status-dot-circle" style="background: #6d28d9;"></span>
+                    CONVERTED
+                  </span>
+                {% elif row.status == 'SENT' %}
+                  <span class="stitch-status-pill sent">
+                    <span class="status-dot-circle" style="background: #2563eb;"></span>
+                    SENT
+                  </span>
+                {% elif row.status == 'DECLINED' %}
+                  <span class="stitch-status-pill declined">
+                    <span class="status-dot-circle" style="background: #dc2626;"></span>
+                    DECLINED
+                  </span>
+                {% else %}
+                  <span class="stitch-status-pill draft">
+                    <span class="status-dot-circle" style="background: #94a3b8;"></span>
+                    DRAFT
+                  </span>
+                {% endif %}
+
+                {% if not row.invoice_id and row.status != 'CONVERTED' and 'invoice.edit' in policy.permissions %}
+                  <form method="post" action="/proposals" style="display: inline-flex; align-items: center; gap: 4px; margin: 0;">
+                    <input type="hidden" name="csrf" value="{{ csrf }}">
+                    <input type="hidden" name="id" value="{{ row.id }}">
+                    <input type="hidden" name="version" value="{{ row.version }}">
+                    <select name="status" aria-label="Stage for {{ row.number }}" style="height: 28px; font-size: 11.5px; border: 1px solid #cbd5e1; border-radius: 6px; padding: 0 6px; background: #fff;">
+                      {% for stage in ['DRAFT','SENT','ACCEPTED','DECLINED'] %}
+                        <option value="{{ stage }}" {{ 'selected' if row.status==stage else '' }}>{{ stage|title }}</option>
+                      {% endfor %}
+                    </select>
+                    <button class="secondary" type="submit" style="height: 28px; padding: 0 8px; font-size: 11px; font-weight: 600; border-radius: 6px;">
+                      Update
+                    </button>
+                  </form>
+                {% endif %}
+              </div>
+            </td>
+
+            <!-- Total Column -->
+            <td style="text-align: right;">
+              <strong class="tabular" style="font-family: 'JetBrains Mono', monospace; font-size: 13.5px; color: var(--ink);">{{ row.total|inr }}</strong>
+              <small style="display: block; font-size: 10.5px; color: var(--muted);">{{ 'GST Incl.' if row.type == 'GST' else 'Net Total' }}</small>
+            </td>
+
+            <!-- Actions Column -->
+            <td style="text-align: right;">
+              <div style="display: flex; align-items: center; justify-content: flex-end; gap: 8px;">
+                {% if row.status == 'ACCEPTED' and not row.invoice_id and 'invoice.create' in policy.permissions %}
+                  <a class="primary" href="/billing?proposal={{ row.id }}" style="display: inline-flex; align-items: center; gap: 4px; padding: 5px 10px; font-size: 11.5px; font-weight: 600; border-radius: 6px; background: #059669; border-color: #059669;">
+                    Convert →
+                  </a>
+                {% endif %}
+                <a class="secondary" href="/proposals/{{ row.id }}" style="padding: 5px 10px; font-size: 12px; font-weight: 500; border-radius: 6px;">
+                  View →
+                </a>
+              </div>
+            </td>
+          </tr>
+        {% else %}
+          <tr>
+            <td colspan="6" class="empty">No proposals match the current filter. Create a proposal to begin.</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}

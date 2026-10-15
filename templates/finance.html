@@ -1,6 +1,6 @@
 {% extends 'base.html' %}
 {% block subtitle %}Track everyday costs, other income and money received from invoices.{% endblock %}
-{% block actions %}{% if 'finance.manage' in policy.permissions %}<a class="primary" href="#finance-entry">＋ Add income / expense</a>{% endif %}{% endblock %}
+{% block actions %}{% if 'finance.manage' in policy.permissions %}<a class="primary" href="#finance-entry"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg> Add income / expense</a>{% endif %}{% endblock %}
 {% block content %}
 <div class="metric-grid finance-metrics">
   {% for label,key,hint in [('Income received','income','Invoice payments + other income'),('Expenses paid','expenses','Manual expenses in this period'),('Net cash movement','net','Income received minus expenses'),('Closing balance','closing','Opening balance + cash movement')] %}

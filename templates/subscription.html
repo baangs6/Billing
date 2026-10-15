@@ -1,5 +1,170 @@
-{% extends 'base.html' %}{% block subtitle %}Your company status, plan and renewal history.{% endblock %}{% block content %}
-{% if state!='ACTIVE' %}<div class="alert {{ 'error' if state!='PENDING' else '' }}">{% if state=='PENDING' %}Your account is awaiting administrator approval.{% elif state=='EXPIRED' %}Your subscription has expired. Please renew your subscription.{% elif state=='REJECTED' %}Your registration was rejected.{% elif state=='SUSPENDED' %}Your account or subscription is suspended.{% elif state=='STAFF_RESTRICTED' %}Your current plan does not include staff access. Contact the company administrator.{% elif state=='ARCHIVED' %}Your company has been archived.{% else %}Your subscription is not active.{% endif %} {{ policy.company.status_reason or '' }}</div>{% endif %}
-<div class="split-layout"><section class="panel"><div class="panel-heading"><h3>Current subscription</h3><span class="badge">{{ state }}</span></div><div class="padded">{% if sub %}<h2>{{ sub.plan.name }}</h2><p>Subscription {{ sub.status }} · {{ sub.cycle }} · {{ sub.amount|inr }} · {{ sub.payment_status }}</p><p>Starts {{ sub.start_at }}<br>Access ends {{ sub.expiry_at or 'No expiry — existing workspace' }}</p><div class="form-grid">{% for name,count in usage.items() %}<div class="metric"><small>{{ 'Invoices this month' if name=='invoices' else name|title }}</small><h3>{{ count }} / {{ sub.plan.limits[name] if sub.plan.limits[name]!=none else 'Unlimited' }}</h3></div>{% endfor %}</div><p>{% for code,label in features.items() %}<span class="badge {{ 'green' if sub.plan.features[code] else '' }}">{{ label }} {{ '✓' if sub.plan.features[code] else '—' }}</span> {% endfor %}</p>{% else %}<p>Your subscription will begin when your registration is approved.</p>{% endif %}<p>Renewal contact: {{ policy_settings.renewal_contact or policy_settings.support_email or 'Contact the software owner' }}</p></div></section>
-{% if 'subscription.manage' in policy.permissions and state not in ['PENDING','REJECTED','ARCHIVED'] %}<section class="panel"><div class="panel-heading"><h3>Request renewal / plan change</h3></div><form method="post" class="padded form-grid"><input type="hidden" name="csrf" value="{{ csrf }}"><label class="full">Plan<select name="plan_id" required>{% for plan in plans %}<option value="{{ plan.id }}">{{ plan.name }} — {{ plan.monthly_price|inr }}/month</option>{% endfor %}</select></label><label class="full">Cycle<select name="cycle"><option value="monthly">Monthly</option><option value="yearly">Yearly</option></select></label><label class="full">Notes<textarea name="notes" maxlength="2500"></textarea></label><p class="full">The owner verifies payment and activates the renewal. A request does not charge you or unlock access.</p><button class="primary full">Submit renewal request</button></form></section>{% endif %}</div>
-<section class="panel"><div class="panel-heading"><h3>Renewal history</h3></div><div class="table-wrap"><table><tr><th>Requested</th><th>Plan</th><th>Cycle</th><th>Status</th><th>Notes</th></tr>{% for row in renewals %}<tr><td>{{ row.created_at }}</td><td>#{{ row.plan_id }}</td><td>{{ row.cycle }}</td><td>{{ row.status }}</td><td>{{ row.notes }}</td></tr>{% else %}<tr><td colspan="5" class="empty">No renewal requests yet.</td></tr>{% endfor %}</table></div></section>{% if 'subscription.manage' in policy.permissions %}<section class="panel"><div class="panel-heading"><h3>Software subscription payments</h3></div><div class="table-wrap"><table><tr><th>Date</th><th>Amount</th><th>Method</th><th>Receipt / reference</th></tr>{% for payment in subscription_payments %}<tr><td>{{ payment.date }}</td><td>{{ payment.amount|inr }}</td><td>{{ payment.method }}</td><td>{{ payment.reference }}</td></tr>{% else %}<tr><td colspan="4" class="empty">No recorded subscription payments.</td></tr>{% endfor %}</table></div></section>{% endif %}{% endblock %}
+{% extends 'base.html' %}
+
+{% block subtitle %}Your company status, plan and renewal history.{% endblock %}
+
+{% block content %}
+{% if state != 'ACTIVE' %}
+  <div class="alert {{ 'error' if state != 'PENDING' else '' }}">
+    {% if state == 'PENDING' %}
+      Your account is awaiting administrator approval.
+    {% elif state == 'EXPIRED' %}
+      Your subscription has expired. Please renew your subscription.
+    {% elif state == 'REJECTED' %}
+      Your registration was rejected.
+    {% elif state == 'SUSPENDED' %}
+      Your account or subscription is suspended.
+    {% elif state == 'STAFF_RESTRICTED' %}
+      Your current plan does not include staff access. Contact the company administrator.
+    {% elif state == 'ARCHIVED' %}
+      Your company has been archived.
+    {% else %}
+      Your subscription is not active.
+    {% endif %}
+    {{ policy.company.status_reason or '' }}
+  </div>
+{% endif %}
+
+<div class="split-layout">
+  <section class="panel">
+    <div class="panel-heading">
+      <div>
+        <div class="eyebrow">Active Plan</div>
+        <h3>Current subscription</h3>
+      </div>
+      <span class="badge {{ 'green' if state == 'ACTIVE' else 'amber' }}">
+        <span class="dot {{ 'green' if state == 'ACTIVE' else 'amber' }}"></span>
+        {{ state }}
+      </span>
+    </div>
+    <div class="padded">
+      {% if sub %}
+        <h2>{{ sub.plan.name }}</h2>
+        <p>Subscription {{ sub.status }} · {{ sub.cycle }} · <strong>{{ sub.amount|inr }}</strong> · {{ sub.payment_status }}</p>
+        <p>Starts <strong>{{ sub.start_at }}</strong><br>Access ends <strong>{{ sub.expiry_at or 'No expiry — existing workspace' }}</strong></p>
+
+        <div class="form-grid" style="margin:20px 0">
+          {% for name, count in usage.items() %}
+            <div class="metric" style="padding:14px 18px">
+              <small>{{ 'Invoices this month' if name == 'invoices' else name|title }}</small>
+              <h3 style="font-size:20px;margin-top:4px">{{ count }} / {{ sub.plan.limits[name] if sub.plan.limits[name] != none else 'Unlimited' }}</h3>
+            </div>
+          {% endfor %}
+        </div>
+
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin:16px 0">
+          {% for code, label in features.items() %}
+            <span class="badge {{ 'green' if sub.plan.features[code] else '' }}">
+              <span class="dot {{ 'green' if sub.plan.features[code] else '' }}"></span>
+              {{ label }}
+            </span>
+          {% endfor %}
+        </div>
+      {% else %}
+        <p>Your subscription will begin when your registration is approved.</p>
+      {% endif %}
+
+      <p style="margin-top:16px;font-size:12px;color:var(--muted)">Renewal contact: <strong>{{ policy_settings.renewal_contact or policy_settings.support_email or 'Contact the software owner' }}</strong></p>
+    </div>
+  </section>
+
+  {% if 'subscription.manage' in policy.permissions and state not in ['PENDING','REJECTED','ARCHIVED'] %}
+    <section class="panel">
+      <div class="panel-heading">
+        <div>
+          <div class="eyebrow">Plan Options</div>
+          <h3>Request renewal / plan change</h3>
+        </div>
+      </div>
+      <form method="post" class="padded form-grid">
+        <input type="hidden" name="csrf" value="{{ csrf }}">
+        <label class="full">Plan
+          <select name="plan_id" required>
+            {% for plan in plans %}
+              <option value="{{ plan.id }}">{{ plan.name }} — {{ plan.monthly_price|inr }}/month</option>
+            {% endfor %}
+          </select>
+        </label>
+        <label class="full">Cycle
+          <select name="cycle">
+            <option value="monthly">Monthly</option>
+            <option value="yearly">Yearly</option>
+          </select>
+        </label>
+        <label class="full">Notes
+          <textarea name="notes" maxlength="2500" placeholder="Optional notes for the platform administrator…"></textarea>
+        </label>
+        <p class="full muted">The software owner verifies payment and activates renewals. A request does not immediately charge your card or change your limits.</p>
+        <button class="primary full" type="submit">Submit renewal request</button>
+      </form>
+    </section>
+  {% endif %}
+</div>
+
+<section class="panel">
+  <div class="panel-heading">
+    <h3>Renewal history</h3>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Requested</th>
+          <th>Plan</th>
+          <th>Cycle</th>
+          <th>Status</th>
+          <th>Notes</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in renewals %}
+        <tr>
+          <td>{{ row.created_at }}</td>
+          <td>#{{ row.plan_id }}</td>
+          <td>{{ row.cycle }}</td>
+          <td><span class="badge">{{ row.status }}</span></td>
+          <td>{{ row.notes or '—' }}</td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="5" class="empty">No renewal requests yet.</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+{% if 'subscription.manage' in policy.permissions %}
+<section class="panel">
+  <div class="panel-heading">
+    <h3>Software subscription payments</h3>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Amount</th>
+          <th>Method</th>
+          <th>Receipt / Reference</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for payment in subscription_payments %}
+        <tr>
+          <td>{{ payment.date }}</td>
+          <td><strong>{{ payment.amount|inr }}</strong></td>
+          <td>{{ payment.method }}</td>
+          <td>{{ payment.reference or '—' }}</td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="4" class="empty">No recorded subscription payments.</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endif %}
+{% endblock %}

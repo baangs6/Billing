@@ -1,1 +1,63 @@
-{% extends 'admin/base.html' %}{% block subtitle %}Registrations, subscriptions and collected software revenue.{% endblock %}{% block actions %}<a class="primary" href="/companies?status=PENDING">Review pending approvals →</a>{% endblock %}{% block content %}<div class="metric-grid">{% for label,value in metrics.items() %}<div class="metric"><span class="metric-icon">{{ '♧' if loop.index<4 else '◫' }}</span><div class="muted">{{ label }}</div><h2>{{ value }}</h2><small>Across the platform</small></div>{% endfor %}</div><div class="panel revenue-panel"><div><div class="eyebrow">SUBSCRIPTION COLLECTIONS · THIS MONTH</div><h2>{{ revenue|inr }}</h2><p>Actual recorded software subscription payments.</p></div><a href="/payments" class="secondary">Payment ledger ↗</a></div><section class="panel"><div class="panel-heading"><div><h3>Recent registrations</h3><p>Review company status and onboarding.</p></div><a href="/companies">All companies →</a></div>{% include 'admin/company_table.html' %}</section><section class="panel"><div class="panel-heading"><div><h3>Subscriptions expiring soon</h3><p>Access ends within the next 14 days.</p></div><a href="/subscriptions?expiring=1">View subscriptions →</a></div>{% with companies=expiring %}{% include 'admin/company_table.html' %}{% endwith %}</section>{% endblock %}
+{% extends 'admin/base.html' %}
+
+{% block subtitle %}Platform registrations, active subscriptions and collected revenue.{% endblock %}
+
+{% block actions %}
+  <a class="primary" href="/companies?status=PENDING">Review pending approvals →</a>
+{% endblock %}
+
+{% block content %}
+<div class="metric-grid">
+  {% for label, value in metrics.items() %}
+  <div class="metric">
+    <span class="metric-icon">
+      {% if 'company' in label|lower or 'business' in label|lower %}
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18"/><path d="M9 8h1"/><path d="M9 12h1"/><path d="M9 16h1"/><path d="M14 8h1"/><path d="M14 12h1"/><path d="M14 16h1"/><path d="M5 21V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16"/></svg>
+      {% elif 'sub' in label|lower %}
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+      {% elif 'pend' in label|lower or 'approv' in label|lower %}
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 14 14"/></svg>
+      {% else %}
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" x2="22" y1="10" y2="10"/></svg>
+      {% endif %}
+    </span>
+    <div class="muted">{{ label }}</div>
+    <h2>{{ value }}</h2>
+    <small>Across the platform</small>
+  </div>
+  {% endfor %}
+</div>
+
+<div class="panel revenue-panel">
+  <div>
+    <div class="eyebrow">Subscription Collections · This Month</div>
+    <h2>{{ revenue|inr }}</h2>
+    <p>Actual recorded software subscription payments.</p>
+  </div>
+  <a href="/payments" class="secondary">Payment ledger →</a>
+</div>
+
+<section class="panel">
+  <div class="panel-heading">
+    <div>
+      <h3>Recent registrations</h3>
+      <p>Review company status and onboarding.</p>
+    </div>
+    <a href="/companies">All companies →</a>
+  </div>
+  {% include 'admin/company_table.html' %}
+</section>
+
+<section class="panel">
+  <div class="panel-heading">
+    <div>
+      <h3>Subscriptions expiring soon</h3>
+      <p>Access ends within the next 14 days.</p>
+    </div>
+    <a href="/subscriptions?expiring=1">View subscriptions →</a>
+  </div>
+  {% with companies=expiring %}
+    {% include 'admin/company_table.html' %}
+  {% endwith %}
+</section>
+{% endblock %}
