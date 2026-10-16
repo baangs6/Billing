@@ -124,12 +124,12 @@
           <td>{{ loop.index }}</td>
           <td>
             <strong>{{ item.name }}</strong>
-            {% if inv.type == 'GST' %}<small>{{ item.hsn }}</small>{% endif %}
+            {% if inv.type == 'GST' or item.get('is_charge') %}<small>{{ item.hsn }}</small>{% endif %}
           </td>
-          <td>{{ item.quantity|qty }} {{ item.unit }}</td>
-          <td>{{ item.rate|inr }}</td>
-          <td>{{ item.mrp|inr }}</td>
-          <td>{{ item.discount|inr }}</td>
+          <td>{% if item.get('is_charge') %}-{% else %}{{ item.quantity|qty }} {{ item.unit }}{% endif %}</td>
+          <td>{% if item.get('is_charge') %}-{% else %}{{ item.rate|inr }}{% endif %}</td>
+          <td>{% if item.get('is_charge') %}-{% else %}{{ item.mrp|inr }}{% endif %}</td>
+          <td>{% if item.get('is_charge') %}-{% else %}{{ item.discount|inr }}{% endif %}</td>
           {% if inv.type == 'GST' %}
             <td>{{ item.gst }}%<small>{{ item.tax|inr }}</small></td>
           {% endif %}

@@ -62,7 +62,7 @@ def build_sales_invoice_pdf(inv):
         if gst: values.append(p(f"{item['gst']}%\n{money(item['tax'])}",right))
         values.append(p(money(item['total']),right)); rows.append(values)
     for item in charges:
-        values=[p(''),p(item['name'],right),p('-',center),p('-',right)]
+        values=[p(''),p(item['name']+('\nHSN/SAC: '+item['hsn'] if item.get('hsn') else ''),right),p('-',center),p('-',right)]
         if gst: values.append(p(f"{item['gst']}%\n{money(item['tax'])}",right))
         values.append(p(money(item['total']),right)); rows.append(values)
     if gst:

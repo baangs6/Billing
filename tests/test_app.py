@@ -690,3 +690,17 @@ def test_additional_charges_tax_edit_and_pdf(workspace):
     assert values(backend,'inventory','quantity')==[8000]
     with pymupdf.open(stream=client.get('/invoices/1/pdf').data,filetype='pdf') as document:
         assert 'GSTIN' not in ''.join(page.get_text() for page in document)
+
+
+def test_charge_display_hides_quantity_and_prices(workspace):
+    import re,pymupdf
+    client,post,backend=workspace
+    data=payload();data['type']='NON-GST'
+    data['items']=json.dumps([dict(is_charge=True,name='Service charge',hsn='9987',rate='300',gst='18')])
+    post('/billing',data)
+    html=client.get('/invoices/1').get_data(as_text=True)
+    row=next(row for row in re.findall(r'<tr>.*?</tr>',html,re.S) if 'Service charge' in row)
+    assert row.count('<td>-</td>')==4
+    assert '9987' in row and '300.00' in row and 'CHARGE' not in row
+    with pymupdf.open(stream=client.get('/invoices/1/pdf').data,filetype='pdf') as doc:
+        assert 'HSN/SAC: 9987' in ''.join(page.get_text() for page in doc)
