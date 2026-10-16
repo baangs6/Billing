@@ -655,3 +655,12 @@ def test_financial_year_header_and_links(workspace,monkeypatch):
     monkeypatch.setattr('app.today',lambda:'2026-04-01')
     assert b'aria-label="Choose financial year">FY 2026-27' in client.get('/customers').data
     assert b'aria-label="Choose financial year">FY 2024-25' in client.get('/invoices?from=2024-04-01&to=2025-03-31').data
+
+
+def test_sidebar_gstin_has_no_sample_fallback(workspace):
+    client,post,backend=workspace
+    assert b'33ABCDE1234F1Z5' in client.get('/customers').data
+    for gstin in ['', '   ']:
+        backend.database.business_settings.update_one({'business_id':1},{'$set':{'data.gstin':gstin}})
+        html=client.get('/customers').data
+        assert b'27AABCU9603R1ZM' not in html and b'33ABCDE1234F1Z5' not in html
