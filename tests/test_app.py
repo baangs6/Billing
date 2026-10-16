@@ -632,3 +632,13 @@ def test_customer_form_opens_on_request(workspace):
     assert b'/customers?add=1#customer-editor' in client.get('/customers').data
     assert b'id="customer-editor"' in client.get('/customers?add=1').data
     assert b'Save changes' in client.get('/customers?edit=1').data
+
+
+def test_home_uses_local_styles_and_scripts(workspace):
+    client,post,backend=workspace
+    html=client.get('/home').get_data(as_text=True)
+    assert 'cdn.tailwindcss.com' not in html and 'fonts.googleapis.com' not in html
+    assert '/static/home-utilities.css' in html and '/static/home-interactions.js' in html
+    assert client.get('/static/home-utilities.css').status_code==200
+    assert client.get('/static/home-interactions.js').status_code==200
+    assert "script-src 'self'" in client.get('/home').headers['Content-Security-Policy']
