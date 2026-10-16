@@ -642,3 +642,16 @@ def test_home_uses_local_styles_and_scripts(workspace):
     assert client.get('/static/home-utilities.css').status_code==200
     assert client.get('/static/home-interactions.js').status_code==200
     assert "script-src 'self'" in client.get('/home').headers['Content-Security-Policy']
+
+
+def test_financial_year_header_and_links(workspace,monkeypatch):
+    client,post,backend=workspace
+    monkeypatch.setattr('app.today',lambda:'2026-10-16')
+    html=client.get('/customers').get_data(as_text=True)
+    assert 'aria-label="Choose financial year">FY 2026-27' in html and 'View invoices by financial year' in html
+    assert 'from=2026-04-01' in html and 'to=2027-03-31' in html
+    monkeypatch.setattr('app.today',lambda:'2026-03-31')
+    assert b'aria-label="Choose financial year">FY 2025-26' in client.get('/customers').data
+    monkeypatch.setattr('app.today',lambda:'2026-04-01')
+    assert b'aria-label="Choose financial year">FY 2026-27' in client.get('/customers').data
+    assert b'aria-label="Choose financial year">FY 2024-25' in client.get('/invoices?from=2024-04-01&to=2025-03-31').data

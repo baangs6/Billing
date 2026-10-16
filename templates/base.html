@@ -111,10 +111,10 @@
       {% endif %}
 
       <div style="display: flex; align-items: center; gap: 12px; margin-left: auto;">
-        <div style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; background: #eff4ff; border-radius: 20px; font-size: 11.5px; font-weight: 500; color: #3b82f6;">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></svg>
-          FY 2024-25
-        </div>
+        {% if policy and 'invoice.view' in policy.permissions and policy.state=='ACTIVE' %}
+        <details class="financial-year-menu"><summary aria-label="Choose financial year">FY {{ financial_year }}-{{ '%02d'|format((financial_year+1)%100) }} <span aria-hidden="true">⌄</span></summary><div class="financial-year-options"><p>View invoices by financial year</p>{% for year in financial_years %}<a href="{{ url_for('invoices', **{'from':'%s-04-01'|format(year),'to':'%s-03-31'|format(year+1)}) }}" {{ 'aria-current=page' if request.endpoint=='invoices' and year==financial_year else '' }}>FY {{ year }}-{{ '%02d'|format((year+1)%100) }}<small>1 Apr {{ year }} – 31 Mar {{ year+1 }}</small></a>{% endfor %}<a href="/invoices">All invoices</a></div></details>
+        {% else %}<span class="financial-year-label">FY {{ financial_year }}-{{ '%02d'|format((financial_year+1)%100) }}</span>{% endif %}
+
 
         {% if policy and 'inventory.view' in policy.permissions and policy.features.inventory and policy.state == 'ACTIVE' %}
           <a class="notification" href="/inventory" title="Stock notifications" aria-label="Stock notifications">

@@ -170,7 +170,14 @@ def create_app(database=None, backend=None):
         if policy:
             nav=[entry for entry in nav if entry[0]=='subscription_page' or (policy['state']=='ACTIVE' and required_permission(entry[0]) in policy['permissions'] and (entry[0] not in ('inventory','reports','company_users','company_roles') or policy['features'].get({'inventory':'inventory','reports':'reports','company_users':'multiple_users','company_roles':'multiple_users'}[entry[0]],False)))]
         plans=Platform(backend).rows('plans',{'active':True}) if request.endpoint=='register' else []
-        return dict(business=settings() if 'user' in session else DEFAULTS, today=today(), csrf=session.get('csrf'), nav=nav, available_plans=plans, policy=policy,permissions=PERMISSIONS)
+        day=date.fromisoformat(today()); current_fy=day.year-(day.month<4); financial_year=current_fy
+        if request.endpoint=='invoices':
+            try:
+                start=date.fromisoformat(request.args.get('from',''))
+                if start.month==4 and start.day==1 and request.args.get('to')==f'{start.year+1}-03-31': financial_year=start.year
+            except ValueError: pass
+        financial_years=sorted(set(range(current_fy-4,current_fy+1))|{financial_year},reverse=True)
+        return dict(financial_year=financial_year,financial_years=financial_years,business=settings() if 'user' in session else DEFAULTS, today=today(), csrf=session.get('csrf'), nav=nav, available_plans=plans, policy=policy,permissions=PERMISSIONS)
 
     app.jinja_env.filters['inr'] = lambda x: f'₹{x/100:,.2f}'
     app.jinja_env.filters['qty'] = lambda x: f'{x/1000:g}'
