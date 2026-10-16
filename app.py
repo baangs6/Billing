@@ -624,6 +624,8 @@ def create_app(database=None, backend=None):
                 raw_items=json.loads(request.form.get('items','[]'))
                 if not isinstance(raw_items,list) or any(not isinstance(r,dict) for r in raw_items): raise ValueError('Invalid invoice items.')
                 for raw in raw_items:
+                    is_charge=raw.get('is_charge') is True
+                    if is_charge and raw.get('product_id'): raise ValueError('Additional charges cannot be stock products.')
                     p=owned('products',raw['product_id']) if raw.get('product_id') else None
                     pd=p['data'] if p else {}
                     if p and not p['active']: raise ValueError('Inactive products cannot be billed.')
@@ -631,7 +633,7 @@ def create_app(database=None, backend=None):
                     if not name or len(name)>150 or len(str(raw.get('hsn','')))>30: raise ValueError('Every item needs a name (up to 150 characters) and a valid HSN/SAC field.')
                     gst=Decimal(str(raw.get('gst','0')))
                     if gst not in [Decimal(r) for r in business['gst_rates'].split(',')]: raise ValueError('Invalid GST rate.')
-                    items.append(dict(product_id=p['id'] if p else None,name=name,quantity=quantity(raw['quantity']),rate=money(raw['rate']),mrp=money(raw.get('mrp',raw['rate'])),gst=str(gst),hsn=str(raw.get('hsn','')),discount=money(raw.get('discount','0')),unit=pd.get('unit',raw.get('unit','PCS'))))
+                    items.append(dict(product_id=p['id'] if p else None,is_charge=is_charge,name=name,quantity=1000 if is_charge else quantity(raw['quantity']),rate=money(raw['rate']),mrp=0 if is_charge else money(raw.get('mrp',raw['rate'])),gst=str(gst),hsn=str(raw.get('hsn','')),discount=0 if is_charge else money(raw.get('discount','0')),unit='CHARGE' if is_charge else pd.get('unit',raw.get('unit','PCS'))))
                 if not items or len(items)>200: raise ValueError('Add between 1 and 200 items.')
                 totals=calculate(items,kind,business['state'].strip().lower()!=customer['data']['state'].strip().lower())
                 if totals['total']>9_000_000_000_000_000: raise ValueError('Invoice total exceeds the supported financial limit.')

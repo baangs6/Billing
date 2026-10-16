@@ -228,6 +228,8 @@ def test_invoice_gstin_visibility(workspace, invoice_type):
     data['type'] = invoice_type
     assert post('/billing', data).status_code == 302
     html = client.get('/invoices/1').get_data(as_text=True)
+    # Inspect invoice content; the workspace sidebar can show the saved business GSTIN.
+    html = html.split('id="invoice-paper"',1)[1].split('</article>',1)[0]
     response = client.get('/invoices/1/pdf')
     assert response.status_code == 200
     with pymupdf.open(stream=response.data, filetype='pdf') as document:
@@ -664,3 +666,27 @@ def test_sidebar_gstin_has_no_sample_fallback(workspace):
         backend.database.business_settings.update_one({'business_id':1},{'$set':{'data.gstin':gstin}})
         html=client.get('/customers').data
         assert b'27AABCU9603R1ZM' not in html and b'33ABCDE1234F1Z5' not in html
+
+
+def test_additional_charges_tax_edit_and_pdf(workspace):
+    import pymupdf
+    client,post,backend=workspace
+    data=payload()
+    items=json.loads(data['items'])+[dict(is_charge=True,name='Service charge',quantity=1,rate='100',mrp='0',discount='0',gst='18'),dict(is_charge=True,name='Transport',quantity=1,rate='50',gst='0')]
+    data['items']=json.dumps(items)
+    post('/billing',data)
+    assert values(backend,'invoices','total')==[40400]
+    charges=list(backend.database.invoice_items.find({'is_charge':True}))
+    assert len(charges)==2 and all(c['product_id'] is None for c in charges)
+    assert values(backend,'inventory','quantity')==[8000]
+    pdf=client.get('/invoices/1/pdf').data
+    with pymupdf.open(stream=pdf,filetype='pdf') as document:
+        text=''.join(page.get_text() for page in document)
+        assert 'Service charge' in text and 'Transport' in text and '404.00' in text
+        assert 'myBillBook' not in text and 'ORIGINAL FOR RECIPIENT' in text
+        assert document[0].rect.width>document[0].rect.height
+    post('/billing',data|dict(id='1',version='1',type='NON-GST'))
+    assert values(backend,'invoices','total')==[35000]
+    assert values(backend,'inventory','quantity')==[8000]
+    with pymupdf.open(stream=client.get('/invoices/1/pdf').data,filetype='pdf') as document:
+        assert 'GSTIN' not in ''.join(page.get_text() for page in document)

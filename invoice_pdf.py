@@ -9,6 +9,9 @@ from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, Tabl
 from PIL import Image as PILImage
 
 def build_invoice_pdf(inv,proposal=False):
+    if not proposal:
+        from sales_invoice_pdf import build_sales_invoice_pdf
+        return build_sales_invoice_pdf(inv)
     output=io.BytesIO(); width=A4[0]-72
     ink=colors.HexColor('#23352e'); green=colors.HexColor('#267a53'); line=colors.HexColor('#dfe7e1')
     normal=ParagraphStyle('body',fontName='Helvetica',fontSize=9,leading=13,textColor=ink)
