@@ -8,7 +8,7 @@
       <h3>{{ 'Edit payment' if edit else 'Record payment' }}</h3>
     </div>
   </div>
-  <form method="post" class="form-grid four padded">
+  <form method="post" class="form-grid four padded"><input type="hidden" name="submission" value="{{ submission }}">
     <input type="hidden" name="csrf" value="{{ csrf }}">
     <input type="hidden" name="id" value="{{ edit.id if edit else '' }}">
     <input type="hidden" name="version" value="{{ edit.get('version', 1) if edit else '' }}">
@@ -61,7 +61,7 @@
         <small style="margin-left:12px;color:var(--muted)">No unpaid invoices available.</small>
       {% endif %}
     </div>
-  </form>
+  {% include 'account_picker.html' %}</form>
 </article>
 
 <article class="panel">

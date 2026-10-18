@@ -6,9 +6,9 @@ from zipfile import ZipFile, BadZipFile
 from xml.etree.ElementTree import ParseError
 from openpyxl.utils.exceptions import InvalidFileException
 
-COLUMNS = ('name','sku','category','description','hsn','unit','purchase_price','mrp','selling_price','gst','min_stock','stock')
+COLUMNS = ('name','sku','category','description','hsn','unit','purchase_price','mrp','selling_price','gst','min_stock','stock','kind','wholesale_price','pricing_mode','alternate_unit','alternate_factor')
 
-def read_products(upload):
+def read_products(upload, columns=COLUMNS, required=('name','selling_price'), maximum=500):
     if not upload or not upload.filename:
         raise ValueError('Choose a CSV or Excel (.xlsx) file.')
     upload.stream.seek(0)
@@ -31,15 +31,15 @@ def read_products(upload):
             raise ValueError('Use a UTF-8 CSV or Excel (.xlsx) file.')
         try:
             headers = [str(value or '').strip().lower().replace(' ', '_') for value in next(rows, [])]
-            if len(headers) != len(set(headers)) or not {'name','selling_price'}.issubset(headers):
-                raise ValueError('Use unique column headers including name and selling_price. Download the template.')
-            unknown = set(headers) - set(COLUMNS)
+            if len(headers) != len(set(headers)) or not set(required).issubset(headers):
+                raise ValueError('Use unique column headers including '+', '.join(required)+'. Download the template.')
+            unknown = set(headers) - set(columns)
             if unknown:
                 raise ValueError('Unknown columns: ' + ', '.join(sorted(unknown)))
             records = []
             for number, row in enumerate(rows, 2):
-                if number > 1002:
-                    raise ValueError('Import at most 500 products with no more than 1,000 spreadsheet rows.')
+                if number > maximum*2+2:
+                    raise ValueError(f'Import at most {maximum} records with no more than {maximum*2} spreadsheet rows.')
                 if not any(value is not None and str(value).strip() for value in row):
                     continue
                 if len(row) > len(headers) and any(value is not None and str(value).strip() for value in row[len(headers):]):
@@ -51,8 +51,8 @@ def read_products(upload):
                     if value.startswith('='):
                         raise ValueError(f'Row {number}: formulas are not supported; use plain values.')
                 records.append((number, record))
-                if len(records) > 500:
-                    raise ValueError('Import at most 500 products at a time.')
+                if len(records) > maximum:
+                    raise ValueError(f'Import at most {maximum} records at a time.')
             if not records:
                 raise ValueError('The file contains no products.')
             return records

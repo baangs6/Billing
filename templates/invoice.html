@@ -2,7 +2,7 @@
 
 {% block actions %}
 <div class="toolbar">
-  {% if inv.status == 'FINAL' and 'invoice.edit' in policy.permissions %}
+  {% if inv.status == 'FINAL' and not inv.get('has_credit_notes') and 'invoice.edit' in policy.permissions %}
     <a class="secondary" href="/billing?edit={{ inv.id }}">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
       Edit invoice
@@ -33,6 +33,7 @@
 
 {% block content %}
 <div class="invoice-controls">
+{% if trade_ready %}<a class="secondary" href="/sales-returns?invoice={{ inv.id }}">Returns &amp; credit notes</a>{% endif %}
   {% if 'invoice.cancel' in policy.permissions and not inv.received %}
     <form method="post" action="/invoices/{{ inv.id }}/{{ 'restore' if inv.get('deleted') else 'delete' }}" class="inline confirm" data-confirm="{{ 'Restore this invoice as cancelled? Stock remains available.' if inv.get('deleted') else 'Move this invoice to Trash? Stock will be restored. You can recover it as cancelled.' }}">
       <input type="hidden" name="csrf" value="{{ csrf }}">
@@ -97,7 +98,7 @@
     <div style="text-align:right">
       <p>
         <strong style="font-size:16px;color:var(--ink)">{{ inv.number }}</strong><br>
-        Invoice date: <strong>{{ inv.date }}</strong><br>
+        Invoice date: <strong>{{ inv.date }}</strong><br>{% for key,label in [('po_number','PO number'),('vehicle_number','Vehicle'),('due_date','Due date')] %}{% if inv.snapshot.get(key) %}{{ label }}: {{ inv.snapshot[key] }}<br>{% endif %}{% endfor %}
         Installation: {{ inv.snapshot.installation or '—' }}<br>
         Service: {{ inv.snapshot.service or '—' }}
       </p>
@@ -127,7 +128,7 @@
             {% if inv.type == 'GST' or item.get('is_charge') %}<small>{{ item.hsn }}</small>{% endif %}
           </td>
           <td>{% if item.get('is_charge') %}-{% else %}{{ item.quantity|qty }} {{ item.unit }}{% endif %}</td>
-          <td>{% if item.get('is_charge') %}-{% else %}{{ item.rate|inr }}{% endif %}</td>
+          <td>{% if item.get('is_charge') %}-{% else %}{% if item.get('unit_rate_decimal') %}₹{{ item.unit_rate_decimal }}{% else %}{{ item.rate|inr }}{% endif %}{% endif %}</td>
           <td>{% if item.get('is_charge') %}-{% else %}{{ item.mrp|inr }}{% endif %}</td>
           {% if 'common_discount' not in inv %}<td>{% if item.get('is_charge') %}-{% else %}{{ item.discount|inr }}{% endif %}</td>{% endif %}
           {% if inv.type == 'GST' %}
@@ -141,8 +142,8 @@
   </div>
 
   <div class="invoice-totals">
-    {% for label, key in [('Subtotal','subtotal'),('Discount','discount'),('Taxable amount' if inv.type=='GST' else 'Total amount','taxable'),('CGST','cgst'),('SGST','sgst'),('IGST','igst'),('Round off','round_off'),('Grand total','total'),('Received','received'),('Balance due','balance')] %}
-      {% if (key != 'round_off' or key in inv) and (key not in ['cgst','sgst','igst'] or inv[key]) %}
+    {% for label, key in [('Subtotal','subtotal'),('Discount','discount'),('Taxable amount' if inv.type=='GST' else 'Total amount','taxable'),('CGST','cgst'),('SGST','sgst'),('IGST','igst'),('Credit notes','credit'),('Refunded','refunded'),('Round off','round_off'),('Grand total','total'),('Received','received'),('Balance due','balance')] %}
+      {% if (key not in ['round_off','credit','refunded'] or key in inv) and (key not in ['cgst','sgst','igst'] or inv[key]) %}
         <div class="summary-line {{ 'grand' if key == 'total' else '' }}">
           <span>{{ label }}</span>
           <strong>{{ inv[key]|inr }}</strong>

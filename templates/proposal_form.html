@@ -9,7 +9,7 @@
   <input type="hidden" name="version" value="{{ edit.version if edit else '' }}">
   <input type="hidden" name="submission" value="{{ submission }}">
   <input type="hidden" name="items" id="items-json">
-  <script type="application/json" id="billing-data">{{ {'products':products,'customers':customers,'business':business,'items':edit['items'] if edit else [],'duplicate':duplicate}|tojson }}</script>
+  <script type="application/json" id="billing-data">{{ {'units_enabled':trade_ready,'products':products,'customers':customers,'business':business,'items':edit['items'] if edit else [],'duplicate':duplicate}|tojson }}</script>
 
   <article class="panel">
     <div class="panel-heading">
@@ -23,6 +23,7 @@
       </a>
     </div>
     <div class="form-grid three padded">
+      {% if trade_ready %}<label>Document type<select name="document_kind">{% for key,label in [('QUOTATION','Proposal / Quotation'),('PROFORMA','Proforma invoice'),('CHALLAN','Delivery challan')] %}<option value="{{ key }}" {{ 'selected' if edit and edit.get('document_kind','QUOTATION')==key else '' }}>{{ label }}</option>{% endfor %}</select></label>{% endif %}
       <label class="full">Proposal title
         <input name="title" required maxlength="150" value="{{ edit.title if edit else '' }}" placeholder="e.g. Shop equipment supply and installation">
       </label>

@@ -18,6 +18,9 @@ PERMISSIONS = {
     'payment.record':'Record payments', 'report.view':'View reports', 'report.export':'Export reports',
     'settings.manage':'Company settings', 'user.manage':'Company users', 'role.manage':'Company roles',
     'subscription.manage':'Renewal requests',
+    'supplier.view':'View suppliers', 'supplier.manage':'Manage suppliers',
+    'purchase.view':'View purchases', 'purchase.manage':'Manage purchases and orders',
+    'return.manage':'Create sales and purchase returns',
     'finance.view':'View income and expenses', 'finance.manage':'Manage income and expenses',
 }
 ROLE_DEFAULTS = {
@@ -61,7 +64,7 @@ def access(store,uid):
     role=store.one('roles',{'id':user.get('role_id')}) if user and user.get('role_id') else None
     permissions=set(role.get('permissions',[])) if role else set()
     if role and role.get('protected'):
-        permissions.update(('finance.view','finance.manage'))
+        permissions.update(('finance.view','finance.manage','supplier.view','supplier.manage','purchase.view','purchase.manage','return.manage'))
     state=company_state(company,sub)
     if state=='ACTIVE' and not sub['plan']['features'].get('multiple_users') and not (role and role.get('protected')): state='STAFF_RESTRICTED'
     return dict(user=user,company=company,subscription=sub,permissions=permissions,

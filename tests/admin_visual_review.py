@@ -6,14 +6,16 @@ import threading
 from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 sys.path.insert(0,str(Path(__file__).resolve().parent))
+import conftest
 from test_app import mongo_backend,workspace
 from saas import Platform,digest
 from admin_app import create_admin_app
 from werkzeug.security import generate_password_hash
 from waitress import create_server
 
-generator=mongo_backend.__wrapped__(); backend=next(generator); server=None
+generator=mongo_backend.__wrapped__(); server=None
 try:
+    backend=next(generator)
     workspace.__wrapped__(backend)
     app=create_admin_app(backend); platform=Platform(backend)
     def create(ms,store):
@@ -24,9 +26,13 @@ try:
     print('Isolated admin QA ready at http://127.0.0.1:5002/login',flush=True)
     input('Press Enter to close and delete the isolated QA database.\n')
 finally:
-    if server:
-        server.close()
-        server.task_dispatcher.shutdown()
-    try: next(generator)
-    except StopIteration: pass
-    print('QA database cleaned.',flush=True)
+    try:
+        if server:
+            try: server.close()
+            finally: server.task_dispatcher.shutdown()
+    finally:
+        try:
+            try: next(generator)
+            except StopIteration: pass
+        finally: conftest.pytest_sessionfinish(None,None)
+    print('QA databases cleaned.',flush=True)

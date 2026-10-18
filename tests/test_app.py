@@ -11,9 +11,10 @@ def mongo_backend():
     uri,_=load_configuration()
     name='ledger_test_'+secrets.token_hex(8)
     backend=MongoBackend(uri,name)
-    initialize_saas(backend)
-    backend.test_plans=list(backend.database.plans.find({}))
-    try: yield backend
+    try:
+        initialize_saas(backend)
+        backend.test_plans=list(backend.database.plans.find({}))
+        yield backend
     finally:
         assert backend.name.startswith('ledger_test_')
         backend.client.drop_database(backend.name)
@@ -62,6 +63,8 @@ def count(backend,collection):
 def test_calculations():
     assert money('1.005')==101
     assert quantity('1.234')==1234
+    with pytest.raises(ValueError): quantity('0.10000000000000000000000000001')
+    assert quantity('0.10000000000000000000000000000')==100
     with pytest.raises(ValueError): quantity('0')
     with pytest.raises(ValueError): money('NaN')
     item=dict(rate=10000,quantity=2000,discount=1000,gst='18')

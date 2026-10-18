@@ -10,7 +10,7 @@
       Download PDF
     </a>
   {% endif %}
-  {% if not proposal.invoice_id and 'invoice.edit' in policy.permissions %}
+  {% if not proposal.invoice_id and not proposal.get('stock_dispatched') and 'invoice.edit' in policy.permissions %}
     <a class="secondary" href="/proposals/new?edit={{ proposal.id }}">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
       Edit proposal
@@ -18,13 +18,16 @@
   {% endif %}
   {% if proposal.invoice_id and 'invoice.view' in policy.permissions %}
     <a class="secondary" href="/invoices/{{ proposal.invoice_id }}">View invoice →</a>
-  {% elif proposal.status != 'DECLINED' and proposal.valid_until >= today and 'invoice.create' in policy.permissions %}
+  {% elif proposal.status != 'DECLINED' and (proposal.get('document_kind')=='CHALLAN' or proposal.valid_until >= today) and 'invoice.create' in policy.permissions %}
     <a class="secondary" href="/billing?proposal={{ proposal.id }}">Review & convert to invoice →</a>
   {% endif %}
 </div>
 {% endblock %}
 
 {% block content %}
+{% if proposal.get('document_kind')=='CHALLAN' and not proposal.get('invoice_id') and 'invoice.edit' in policy.permissions %}<form method="post" action="/documents/{{ proposal.id }}/dispatch" class="panel"><input type="hidden" name="csrf" value="{{ csrf }}"><p>{{ 'Stock dispatched. Invoice conversion will not reduce stock again.' if proposal.get('stock_dispatched') else 'Draft challan: stock has not been dispatched.' }}</p><button class="secondary" name="action" value="{{ 'cancel' if proposal.get('stock_dispatched') else 'dispatch' }}">{{ 'Cancel dispatch and restore stock' if proposal.get('stock_dispatched') else 'Dispatch stock' }}</button></form>{% endif %}
+<p>{{ {'QUOTATION':'Proposal / Quotation','PROFORMA':'Proforma invoice','CHALLAN':'Delivery challan'}.get(proposal.get('document_kind','QUOTATION')) }}</p>
+
 <article class="invoice-paper">
   <div class="invoice-header">
     <div>
@@ -82,7 +85,7 @@
             <small>{{ item.hsn }}</small>
           </td>
           <td>{{ item.quantity|qty }} {{ item.unit }}</td>
-          <td>{{ item.rate|inr }}</td>
+          <td>{% if item.get('unit_rate_decimal') %}₹{{ item.unit_rate_decimal }}{% else %}{{ item.rate|inr }}{% endif %}</td>
           <td>{{ item.discount|inr }}</td>
           <td>{{ item.tax|inr }}</td>
           <td style="text-align:right"><strong>{{ item.total|inr }}</strong></td>

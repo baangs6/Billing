@@ -22,7 +22,7 @@
         <fieldset class="full" style="border: 1px solid var(--border); border-radius: var(--radius-md); padding: 16px; background: var(--bg);">
           <legend style="padding: 0 8px; font-weight: 600; font-size: 13px; color: var(--text);">Sections to reset</legend>
           <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px;">
-            {% for key,label in [('billing','1) Billing'),('proposals','2) Proposals'),('invoices','3) Invoices'),('customers','4) Customers'),('inventory','5) Inventory'),('products','6) Products'),('payments','7) Payments'),('finance','8) Finance'),('reports','9) Reports')] %}
+            {% for key,label in [('billing','1) Billing'),('proposals','2) Proposals'),('invoices','3) Invoices'),('customers','4) Customers'),('inventory','5) Inventory'),('products','6) Products'),('payments','7) Payments'),('finance','8) Finance'),('reports','9) Reports'),('purchases','10) Purchases & supplier payments'),('suppliers','11) Suppliers'),('accounts','12) Cash & bank accounts')] %}
               <label class="checkbox" style="padding: 6px 8px; border-radius: var(--radius-sm); background: var(--surface);">
                 <input type="checkbox" name="sections" value="{{ key }}">
                 <span>{{ label }}</span>

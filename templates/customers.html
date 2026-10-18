@@ -41,6 +41,7 @@
 {% endblock %}
 
 {% block content %}
+{% if trade_ready %}<a class="secondary" href="/party-import?target=customers">Import Excel / CSV</a>{% endif %}
 
 {# ========================================================================= #}
 {# STATE 1: ADD / EDIT CUSTOMER WORKSPACE                                    #}
@@ -58,11 +59,11 @@
     <div>
       <div style="font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #2563eb; margin-bottom: 4px; display: flex; items-center; gap: 6px;">
         <span style="display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #2563eb;"></span>
-        CLIENT ONBOARDING ENGINE · GST-V4 AUTO-VALIDATE
+        CUSTOMER PROFILES &amp; CREDIT TERMS
       </div>
       <h1 class="stitch-cust-title">{{ 'Edit Customer' if edit else 'Add New Customer' }}</h1>
       <p class="stitch-cust-subtitle">
-        {{ 'Update client profile, GSTIN configuration, and credit terms.' if edit else 'Register a client or enterprise account, configure GSTIN for automated tax filing, and set commercial credit limits.' }}
+        {{ 'Update client profile, GSTIN configuration, and credit terms.' if edit else 'Register a client or enterprise account, record GSTIN for invoice tax details, and set commercial credit limits.' }}
       </p>
     </div>
     <div style="display: flex; align-items: center; gap: 12px;">
@@ -123,11 +124,11 @@
             <span class="stitch-step-badge">02</span>
             <div>
               <h3 class="stitch-step-title">GST &amp; Tax Classification</h3>
-              <p class="stitch-step-desc">Fiscal jurisdiction, GST portal verification, and PAN sync</p>
+              <p class="stitch-step-desc">Fiscal jurisdiction and recorded tax identifiers</p>
             </div>
           </div>
           <span style="display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 9999px; background: #f0fdf4; color: #16a34a; font-size: 11px; font-weight: 600;">
-            <span style="width: 5px; height: 5px; border-radius: 50%; background: #16a34a;"></span> e-Invoicing Ready
+            <span style="width: 5px; height: 5px; border-radius: 50%; background: #16a34a;"></span> GST details
           </span>
         </div>
 
@@ -163,7 +164,7 @@
               <label style="margin-bottom: 0;">GSTIN <span style="font-size: 11px; font-weight: 400; color: #64748b;">(15-digit Alphanumeric)</span></label>
               <span id="gstin-verify-indicator" style="font-size: 11px; font-weight: 600; color: #2563eb; cursor: pointer; display: inline-flex; align-items: center; gap: 4px;">
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-                Verify with GST Portal
+                GST lookup not configured
               </span>
             </div>
             <input name="gstin" id="input-cust-gstin" maxlength="15" style="text-transform: uppercase; font-family: 'JetBrains Mono', monospace;" value="{{ edit.data.gstin if edit else '' }}" placeholder="e.g. 27AAAAA0000A1Z5">
@@ -189,7 +190,7 @@
             <span class="stitch-step-badge">03</span>
             <div>
               <h3 class="stitch-step-title">Billing &amp; Shipping Address</h3>
-              <p class="stitch-step-desc">Registered domicile for e-Way bills, tax invoices, and courier dispatch</p>
+              <p class="stitch-step-desc">Billing details for invoices and delivery documents</p>
             </div>
           </div>
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#64748b" stroke-width="2"><rect width="16" height="13" x="1" y="3" rx="2"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
@@ -224,6 +225,12 @@
         </div>
       </div>
 
+{% if trade_ready %}
+      <section class="stitch-step-card"><h3>Additional party details</h3><div class="form-grid">
+      {% for key,label in [('pan','PAN'),('contact_person','Contact person'),('shipping_address','Shipping address'),('category','Party category'),('bank','Bank / IFSC / UPI details'),('credit_days','Credit period in days')] %}<label>{{ label }}<input name="{{ key }}" value="{{ edit.data.get(key,'') if edit else '' }}" maxlength="300"></label>{% endfor %}
+      <label>Credit limit INR (0 = no configured limit)<input name="credit_limit" type="number" min="0" step="0.01" value="{{ edit.data.get('credit_limit',0)/100 if edit else 0 }}"></label>
+      <label>Opening balance INR<input name="opening_balance" type="number" min="0" step="0.01" value="{{ edit.data.get('opening_balance',0)|abs/100 if edit else 0 }}"></label><label>Opening balance direction<select name="opening_direction"><option value="COLLECT">To collect</option><option value="PAY" {{ 'selected' if edit and edit.data.get('opening_balance',0)<0 else '' }}>To pay</option></select></label></div></section>
+{% endif %}
       <!-- Action Button Bar -->
       <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 14px; padding: 16px 20px; display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 30px; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);">
         <a href="/customers" style="display: inline-flex; align-items: center; gap: 6px; padding: 9px 18px; border-radius: 10px; font-size: 13px; font-weight: 500; color: #475569; background: #f1f5f9; text-decoration: none;">

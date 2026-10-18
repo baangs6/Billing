@@ -1,0 +1,2 @@
+{% if trade_ready %}<label>Cash / bank ledger account<select name="ledger_account"><option value="">Existing account based on payment method</option>{% for account in bank_accounts %}<option value="{{ account.id }}" {{ 'selected' if edit and edit.get('ledger_account')==account.id|string else '' }}>{{ account.name }}</option>{% endfor %}</select></label>
+{% endif %}

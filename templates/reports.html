@@ -1,6 +1,6 @@
 {% extends 'base.html' %}
 
-{% block content %}
+{% block content %}{% if trade_ready %}<div class="toolbar"><a href="/accounting-reports" class="secondary">Purchases, GST, ledgers &amp; valuation</a></div>{% endif %}
 <article class="panel">
   <form class="filter-bar">
     <label>Report type

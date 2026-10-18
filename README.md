@@ -145,3 +145,7 @@ Home styling is served from committed local CSS and JavaScript; no CDN script or
 Billing → Additional charge adds a named, non-stock charge with amount and a configured GST rate. Non-GST invoices ignore tax; GST invoices use the selected charge rate and normal CGST/SGST or IGST calculations. Charges are retained on edits/duplicates and included in payments and reports. Invoice PDFs use a bordered A5 landscape layout with charges below items, received/balance, terms and the saved business signature/logo; no third-party branding is included. Proposal PDF layout is unchanged.
 
 Billing adjustments: use the Invoice summary buttons for a common discount amount and named additional charges (with optional HSN/SAC). The common discount is allocated proportionally to product/service amounts before GST and excludes additional charges. Nearest-rupee rounding is optional; the saved invoice and PDF show its signed adjustment. Existing invoices and proposals retain their original calculations until edited.
+
+## Integrated feature development branch
+
+See [feature comparison](docs/FEATURE_PROGRESS.md), [capability map](docs/CAPABILITY_MAP.md) and [implementation/operation review](docs/IMPLEMENTATION_REVIEW.md). The development modules require an explicitly approved additive storage preparation; they are not automatically migrated or deployed. The full master checklist is not claimed complete. See [verification](docs/VERIFICATION.md), [review findings](docs/REVIEW_LOG.md), and [changed files](docs/FILES_CHANGED.md).

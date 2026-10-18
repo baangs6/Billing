@@ -5,9 +5,11 @@ import io
 import json
 import secrets
 from datetime import date
+from decimal import Decimal
 from pathlib import Path
 from flask import request, session, g, abort, flash, redirect, url_for, render_template, Response
 from PIL import Image
+from accounts import account_key
 
 ACCOUNTS=('Cash','Bank','Other')
 METHODS=('Cash','UPI','Bank Transfer','Card','Cheque','Other')
@@ -34,10 +36,23 @@ def install_finance(app, db, owned, audit, money, today, payment_rows, pdf_docum
 
     def movements():
         rows=[]
+        named={str(account['id']):account['kind'] for account in db().find('bank_accounts')}
+        def group(payment):
+            key=payment.get('ledger_account','')
+            return key.split(':',1)[1] if key.startswith('legacy:') else named.get(key,'Cash' if payment.get('method')=='Cash' else 'Other' if payment.get('method')=='Other' else 'Bank')
         for entry in db().find('finance_entries',{'status':'ACTIVE'},projection={'receipt.data':0}):
-            rows.append(dict(entry,source='Manual',invoice_id=None))
+            rows.append(dict(entry,account=group(entry) if entry.get('ledger_account') else entry['account'],source='Manual',invoice_id=None))
         for payment in payment_rows():
-            rows.append(dict(id=payment['id'],date=payment['date'],kind='INCOME',category='Invoice collections',title=payment['number']+' · '+payment['customer'],amount=payment['amount'],account='Cash' if payment['method']=='Cash' else 'Other' if payment['method']=='Other' else 'Bank',method=payment['method'],notes=payment.get('notes',''),reference=payment.get('reference',''),source='Invoice payment',invoice_id=payment['invoice_id'],receipt=None))
+            rows.append(dict(id=payment['id'],date=payment['date'],kind='INCOME',category='Invoice collections',title=payment['number']+' · '+payment['customer'],amount=payment['amount'],ledger_account=payment.get('ledger_account','legacy:'+group(payment)),account=group(payment),method=payment['method'],notes=payment.get('notes',''),reference=payment.get('reference',''),source='Invoice payment',invoice_id=payment['invoice_id'],receipt=None))
+        for payment in db().find('trade_payments'):
+            if payment['kind'] not in ('PAYMENT_OUT','SUPPLIER_REFUND','CUSTOMER_REFUND','OPENING_IN','OPENING_OUT'): continue
+            rows.append(dict(id=payment['id'],date=payment['date'],kind='EXPENSE' if payment['kind'] in ('PAYMENT_OUT','CUSTOMER_REFUND','OPENING_OUT') else 'INCOME',category='Supplier settlements',title=('Invoice #'+str(payment['invoice_id']) if payment['kind']=='CUSTOMER_REFUND' else 'Purchase #'+str(payment['purchase_id']) if payment.get('purchase_id') else 'Opening balance settlement'),amount=payment['amount'],ledger_account=payment.get('ledger_account','legacy:'+group(payment)),account=group(payment),method=payment['method'],notes='',reference=payment.get('reference',''),source='Opening settlement' if payment['kind'].startswith('OPENING_') else 'Customer refund' if payment['kind']=='CUSTOMER_REFUND' else 'Supplier payment',invoice_id=None,receipt=None))
+        for account in db().find('bank_accounts'):
+            rows.append(dict(id=account['id'],date=account['date'],kind='OPENING',category='Opening balance',title=account['name'],amount=account['opening'],account=account['kind'],ledger_account=str(account['id']),method='Other',notes='',reference='',source='Account opening',invoice_id=None,receipt=None))
+        for transfer in db().find('account_transfers'):
+            for field,kind in [('from_account','TRANSFER_OUT'),('to_account','TRANSFER_IN')]:
+                key=transfer[field]
+                rows.append(dict(id=transfer['id'],date=transfer['date'],kind=kind,category='Internal transfers',title='Account transfer',amount=transfer['amount'],account=group({'ledger_account':key}),ledger_account=key,method='Other',notes='',reference=transfer['reference'],source='Internal transfer',invoice_id=None,receipt=None))
         return sorted(rows,key=lambda row:(row['date'],row['id']),reverse=True)
 
     @app.route('/finance',methods=['GET','POST'])
@@ -67,7 +82,14 @@ def install_finance(app, db, owned, audit, money, today, payment_rows, pdf_docum
                 existing=db().one('finance_entries',{'kind':'OPENING','account':account,'status':'ACTIVE'})
                 if existing and (not previous or existing['id']!=previous['id']): raise ValueError('This account already has an opening balance. Edit that entry instead.')
             attachment=receipt(request.files.get('receipt'))
-            values=dict(date=day,kind=kind,category=category,title=title,amount=amount,account=account,method=method,notes=request.form.get('notes','').strip(),reference=request.form.get('reference','').strip())
+            prior_account=previous.get('ledger_account','') if previous else ''
+            if prior_account.startswith('legacy:'): prior_account=''
+            ledger=account_key(db(),request.form.get('ledger_account',prior_account),account,day)
+            if not ledger.startswith('legacy:'):
+                if kind=='OPENING': raise ValueError('Set named account opening balances when creating the account in Cash & banks.')
+                account=db().one('bank_accounts',{'id':int(ledger)})['kind']
+            else: account=ledger.split(':',1)[1]
+            values=dict(ledger_account=ledger,date=day,kind=kind,category=category,title=title,amount=amount,account=account,method=method,notes=request.form.get('notes','').strip(),reference=request.form.get('reference','').strip())
             if attachment: values['receipt']=attachment
             elif request.form.get('remove_receipt'): values['receipt']=None
             if previous:
@@ -82,26 +104,30 @@ def install_finance(app, db, owned, audit, money, today, payment_rows, pdf_docum
         if start>end: raise ValueError('From date must be before the To date.')
         account=request.args.get('account',''); category=request.args.get('category',''); kind=request.args.get('kind','')
         if account and account not in ACCOUNTS: raise ValueError('Choose a valid account.')
-        if kind and kind not in ('INCOME','EXPENSE','OPENING'): raise ValueError('Choose a valid entry type.')
+        if kind and kind not in ('INCOME','EXPENSE','OPENING','TRANSFER_IN','TRANSFER_OUT'): raise ValueError('Choose a valid entry type.')
         all_rows=movements()
-        opening_dates={row['account']:row['date'] for row in all_rows if row['kind']=='OPENING' and row['date']<=end}
+        opening_dates={}
+        ledger=lambda row:row.get('ledger_account','legacy:'+row['account'])
+        for row in all_rows:
+            if row['kind']=='OPENING' and row['date']<=end: opening_dates[ledger(row)]=max(opening_dates.get(ledger(row),''),row['date'])
         # Opening balances establish a baseline, rather than adding older invoice
         # collections to cash that the opening amount already represents.
-        tracked=[row for row in all_rows if row['date']>=opening_dates.get(row['account'],'0001-01-01')]
+        tracked=[row for row in all_rows if row['date']>=opening_dates.get(ledger(row),'0001-01-01')]
         account_rows=[row for row in tracked if not account or row['account']==account]
         period=[row for row in account_rows if start<=row['date']<=end]
         rows=[row for row in period if (not category or row['category']==category) and (not kind or row['kind']==kind)]
-        signed=lambda row:-row['amount'] if row['kind']=='EXPENSE' else row['amount']
+        signed=lambda row:-row['amount'] if row['kind'] in ('EXPENSE','TRANSFER_OUT') else row['amount']
         summary=dict(income=sum(row['amount'] for row in period if row['kind']=='INCOME'),expenses=sum(row['amount'] for row in period if row['kind']=='EXPENSE'),opening=sum(signed(row) for row in account_rows if row['date']<start),opening_added=sum(row['amount'] for row in period if row['kind']=='OPENING'))
         summary['net']=summary['income']-summary['expenses']
-        summary['closing']=summary['opening']+summary['opening_added']+summary['net']
+        summary['transfer_net']=sum(signed(row) for row in period if row['kind'].startswith('TRANSFER_'))
+        summary['closing']=summary['opening']+summary['opening_added']+summary['net']+summary['transfer_net']
         breakdown={}
         for row in period:
             if row['kind']=='EXPENSE': breakdown[row['category']]=breakdown.get(row['category'],0)+row['amount']
         if request.args.get('export'):
             if 'report.export' not in g.access['permissions']: abort(403)
             headers=['Date','Type','Category','Title','Amount (INR)','Account','Method','Source','Reference','Notes']
-            values=[[row[key] for key in ('date','kind','category','title')]+[f"{row['amount']/100:.2f}"]+[row.get(key,'') for key in ('account','method','source','reference','notes')] for row in rows]
+            values=[[row[key] for key in ('date','kind','category','title')]+[f"{Decimal(row['amount'])/100:.2f}"]+[row.get(key,'') for key in ('account','method','source','reference','notes')] for row in rows]
             if request.args['export']=='csv':
                 safe=lambda value:"'"+value if isinstance(value,str) and value.lstrip().startswith(('=','+','-','@')) else value
                 output=io.StringIO(); writer=csv.writer(output); writer.writerow(headers); writer.writerows([[safe(value) for value in row] for row in values])
@@ -110,7 +136,7 @@ def install_finance(app, db, owned, audit, money, today, payment_rows, pdf_docum
                 if not g.access['features'].get('pdf'): abort(403)
                 # Short columns fit A4; full detail remains available in the CSV export.
                 table=[['Date','Type','Category','Amount INR']]+[[row[0],row[1],row[2],row[4]] for row in values]
-                totals=[f"Period: {start} to {end}; Account: {account or 'All accounts'}",'Summary covers the selected dates and account; table follows category/type filters.',f"Income: INR {summary['income']/100:,.2f}; Expenses: INR {summary['expenses']/100:,.2f}",f"Cash movement: INR {summary['net']/100:,.2f}; Closing balance: INR {summary['closing']/100:,.2f}"]
+                totals=[f"Period: {start} to {end}; Account: {account or 'All accounts'}",'Summary covers the selected dates and account; table follows category/type filters.',f"Income: INR {Decimal(summary['income'])/100:,.2f}; Expenses: INR {Decimal(summary['expenses'])/100:,.2f}",f"Cash movement: INR {Decimal(summary['net'])/100:,.2f}; Closing balance: INR {Decimal(summary['closing'])/100:,.2f}"]
                 return Response(pdf_document('Income & expenses',totals+[table]),mimetype='application/pdf',headers={'Content-Disposition':'attachment; filename=finance.pdf'})
             raise ValueError('Choose CSV or PDF export.')
         edit=owned('finance_entries',request.args['edit']) if request.args.get('edit') else None

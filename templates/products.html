@@ -58,7 +58,7 @@
         {% for p in rows %}
         <tr data-category="{{ p.data.category }}">
           <td>
-            <strong>{{ p.name }}</strong>
+            <strong>{{ p.name }}</strong>{% if p.data.get('has_photo') %}<img src="/products/{{ p.id }}/photo" alt="{{ p.name }}" width="64" height="64" loading="lazy" style="object-fit:cover;border-radius:12px">{% endif %}
             <small>{{ p.sku }} · {{ 'Active' if p.active else 'Inactive' }}</small>
           </td>
           <td>{{ p.data.category }}</td>
@@ -94,7 +94,7 @@
   <div class="panel-heading">
     <h3>{{ 'Edit product' if edit else 'Add product' }}</h3>
   </div>
-  <form method="post" class="form-grid four padded">
+  <form method="post" enctype="multipart/form-data" class="form-grid four padded">
     <input type="hidden" name="csrf" value="{{ csrf }}">
     <input type="hidden" name="id" value="{{ edit.id if edit else '' }}">
     {{ field('name','Product name',edit.name if edit else '',required=True) }}
@@ -115,6 +115,14 @@
     <label>Minimum stock
       <input type="number" name="min_stock" step="0.001" min="0" value="{{ edit.data.min_stock / 1000 if edit else 5 }}">
     </label>
+    {% if trade_ready %}
+    <label>Product photo (optional)<input type="file" name="photo" accept="image/png,image/jpeg"><small>PNG/JPEG, up to 2 MB.</small></label>{% if edit and edit.data.get('has_photo') %}<label><input type="checkbox" name="remove_photo" value="1"> Remove product photo</label>{% endif %}
+    <label>Item type<select name="kind"><option value="STOCK">Stock product</option><option value="SERVICE" {{ 'selected' if edit and edit.data.get('kind')=='SERVICE' }}>Service (no stock)</option></select></label>
+    <label>Price includes GST?<select name="pricing_mode"><option value="EXCLUSIVE">Tax exclusive</option><option value="INCLUSIVE" {{ 'selected' if edit and edit.data.get('pricing_mode')=='INCLUSIVE' }}>Tax inclusive</option></select></label>
+    <label>Wholesale price (optional)<input type="number" name="wholesale_price" min="0" step="0.01" value="{{ edit.data.wholesale_price/100 if edit and edit.data.get('wholesale_price') is not none and edit.data.get('wholesale_price') is defined else '' }}"></label>
+    {{ field('alternate_unit','Alternate unit (optional)',edit.data.get('alternate_unit','') if edit else '') }}
+    <label>Primary units per alternate unit<input type="number" name="alternate_factor" min="0" max="1000000" step="0.000000001" value="{{ edit.data.get('alternate_factor','0') if edit else '0' }}"><small>Example: 1 BOX = 10 PCS; enter 10.</small></label>
+    {% endif %}
     {% if not edit %}
       <label>Opening stock
         <input type="number" name="stock" step="0.001" min="0" value="0">

@@ -82,7 +82,7 @@
     <input type="hidden" name="proposal_version" value="{{ proposal_source.version }}">
   {% endif %}
   <input type="hidden" name="items" id="items-json">
-  <script type="application/json" id="billing-data">{{ {'products':products,'customers':customers,'business':business,'items':edit['items'] if edit else [],'duplicate':duplicate,'categories':categories}|tojson }}</script>
+  <script type="application/json" id="billing-data">{{ {'units_enabled':trade_ready,'products':products,'customers':customers,'business':business,'items':edit['items'] if edit else [],'duplicate':duplicate,'categories':categories}|tojson }}</script>
 
   <!-- BEGIN: STEP 01 Customer & invoice details -->
   <section class="stitch-step-card" data-purpose="customer-and-invoice-details-step">
@@ -250,7 +250,7 @@
 
         <!-- Notes -->
         <div class="stitch-field">
-          <label class="stitch-label" for="invoice-notes">
+          {% include 'account_picker.html' %}<label class="stitch-label" for="invoice-notes">
             <span>Notes</span>
             <span class="stitch-label-optional">Optional · shown on the invoice</span>
           </label>
@@ -268,7 +268,7 @@
     <!-- Right Column: Sticky Invoice Summary Card -->
     <div class="stitch-summary-card" data-purpose="invoice-summary-card">
       <h3 class="stitch-summary-header">Invoice summary</h3>
-      <div class="summary-options">
+      {% if trade_ready %}<label>PO number<input name="po_number" value="{{ edit.snapshot.get('po_number','') if edit else '' }}"></label><label>Vehicle number<input name="vehicle_number" value="{{ edit.snapshot.get('vehicle_number','') if edit else '' }}"></label>{% endif %}<div class="summary-options">
         <details {{ 'open' if edit and edit.discount else '' }}><summary class="secondary">＋ Discount</summary><label for="common-discount">Common discount amount ₹</label><input id="common-discount" name="common_discount" type="number" min="0" step="0.01" value="{{ edit.discount/100 if edit else 0 }}"><small>Before GST, across items. Additional charges are excluded.</small></details>
         <button type="button" id="additional-charge" class="secondary">＋ Additional charge</button>
         <div id="charge-rows"></div>

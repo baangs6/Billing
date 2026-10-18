@@ -1,5 +1,5 @@
 {% extends 'base.html' %}
-{% block subtitle %}Quotations and commercial proposals, separate from finalized invoices. Convert accepted proposals into compliant tax invoices instantly.{% endblock %}
+{% block subtitle %}Quotations and commercial proposals, separate from finalized invoices. Review and convert accepted proposals into GST or non-GST invoices.{% endblock %}
 
 {% block actions %}
   <a class="secondary" href="/proposals?export=csv{{ ('&status=' ~ request.args.get('status')) if request.args.get('status') else '' }}{{ ('&q=' ~ request.args.get('q')) if request.args.get('q') else '' }}" style="display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; font-size: 13px; font-weight: 500; border-radius: var(--radius-md);">

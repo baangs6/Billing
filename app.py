@@ -19,10 +19,15 @@ from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image
 from xml.sax.saxutils import escape
 from invoice_pdf import build_invoice_pdf
+from accounts import account_key
+from product_units import line_units,line_pricing,primary_quantity,product_options,rate_text
 from saas import access, quota, seed_roles, Platform, PERMISSIONS, FEATURES, local_month, stamp, subscription_state, month_add
 
 ROOT = Path(__file__).parent
 DEFAULTS = dict(name='Your business', address='', phone='', email='', gstin='', state='Tamil Nadu', pin='', bank='', upi='', terms='Thank you for your business. Goods once sold are subject to the agreed return policy.', signatory='', logo='', signature='', prefix='INV/{fy}/{seq}', gst_rates='0,5,12,18,28', negative_stock=False)
+
+def csv_safe(value):
+    return "'"+value if isinstance(value,str) and value.startswith(('=','+','-','@','\t','\r')) else value
 
 def today():
     return datetime.now(timezone(timedelta(hours=5, minutes=30))).date().isoformat()
@@ -39,7 +44,7 @@ def money(value):
 def quantity(value, allow_zero=False):
     try:
         d = Decimal(str(value))
-        if not d.is_finite() or d < 0 or (d == 0 and not allow_zero) or d > 100000000 or d * 1000 != (d * 1000).to_integral_value():
+        if not d.is_finite() or d < 0 or (d == 0 and not allow_zero) or d > 100000000 or d != d.quantize(Decimal('0.001')):
             raise ValueError('Quantity must be positive with at most three decimal places.')
         return int(d * 1000)
     except InvalidOperation:
@@ -50,7 +55,7 @@ def rounded(value):
 
 def calculate(items, kind, interstate, common_discount=None, round_total=False):
     if common_discount is not None:
-        bases=[rounded(Decimal(item['rate'])*item['quantity']/1000) if not item.get('is_charge') else 0 for item in items]
+        bases=[item.get('base_amount',rounded(Decimal(item['rate'])*item['quantity']/1000)) if not item.get('is_charge') else 0 for item in items]
         eligible=sum(bases)
         if not 0<=common_discount<=eligible: raise ValueError('Common discount cannot exceed the item subtotal; additional charges are excluded.')
         cumulative=allocated=0
@@ -61,7 +66,7 @@ def calculate(items, kind, interstate, common_discount=None, round_total=False):
 
     totals = dict(subtotal=0, discount=0, taxable=0, cgst=0, sgst=0, igst=0, total=0)
     for item in items:
-        base = rounded(Decimal(item['rate']) * item['quantity'] / 1000)
+        base = item.get('base_amount',rounded(Decimal(item['rate']) * item['quantity'] / 1000))
         if item['discount'] > base:
             raise ValueError('Line discount cannot exceed its amount.')
         taxable = base - item['discount']
@@ -71,6 +76,10 @@ def calculate(items, kind, interstate, common_discount=None, round_total=False):
         else:
             cgst = rounded(Decimal(taxable) * rate / 200)
             sgst, igst = cgst, 0
+        if kind=='GST' and 'included_tax' in item and not item['discount']:
+            tax=item['included_tax']
+            if interstate: igst,cgst,sgst=tax,0,0
+            else: cgst=rounded(Decimal(tax)/2);sgst,igst=tax-cgst,0
         item.update(taxable=taxable, tax=cgst+sgst+igst, total=taxable+cgst+sgst+igst)
         for key, val in dict(subtotal=base, discount=item['discount'], taxable=taxable, cgst=cgst, sgst=sgst, igst=igst, total=item['total']).items():
             totals[key] += val
@@ -94,7 +103,7 @@ def create_app(database=None, backend=None):
     keyfile = instance / 'secret.key'
     if not keyfile.exists():
         keyfile.write_text(secrets.token_hex(32))
-    app.config.update(SECRET_KEY=os.environ.get('SECRET_KEY') or keyfile.read_text(),  SESSION_COOKIE_HTTPONLY=True, SESSION_COOKIE_SAMESITE='Lax', SESSION_COOKIE_SECURE=os.environ.get('HTTPS')=='1', MAX_CONTENT_LENGTH=4*1024*1024, PERMANENT_SESSION_LIFETIME=timedelta(hours=8))
+    app.config.update(SECRET_KEY=os.environ.get('SECRET_KEY') or keyfile.read_text(),  SESSION_COOKIE_HTTPONLY=True, SESSION_COOKIE_SAMESITE='Lax', SESSION_COOKIE_SECURE=os.environ.get('HTTPS')=='1', MAX_CONTENT_LENGTH=6*1024*1024, PERMANENT_SESSION_LIFETIME=timedelta(hours=8))
 
     if backend is None:
         uri,name=load_configuration()
@@ -128,7 +137,11 @@ def create_app(database=None, backend=None):
         inv['items'] = db().find('invoice_items',{'invoice_id':ident},sort=[('id',1)])
         inv['payments'] = db().find('payments',{'invoice_id':ident},sort=[('date',1),('id',1)])
         inv['received'] = sum(p['amount'] for p in inv['payments'])
-        inv['balance'] = inv['total']-inv['received']
+        notes=db().find('sales_returns',{'invoice_id':inv['id']})
+        inv['has_credit_notes']=bool(notes)
+        inv['credit']=sum(note['total'] for note in notes)
+        inv['refunded']=sum(pay['amount'] for pay in db().find('trade_payments',{'invoice_id':inv['id'],'kind':'CUSTOMER_REFUND'}))
+        inv['balance'] = inv['total']-inv['credit']-inv['received']+inv['refunded']
         return inv
 
     def all_invoices():
@@ -138,9 +151,12 @@ def create_app(database=None, backend=None):
         for row in rows:
             row['customer']=row['snapshot']['customer']['name']
             row['received']=receipts.get(row['id'],0)
+        credits={};refunds={}
+        for note in db().find('sales_returns'): credits[note['invoice_id']]=credits.get(note['invoice_id'],0)+note['total']
+        for pay in db().find('trade_payments',{'kind':'CUSTOMER_REFUND'}): refunds[pay['invoice_id']]=refunds.get(pay['invoice_id'],0)+pay['amount']
         result=[]
         for row in rows:
-            r=dict(row); r['balance']=r['total']-r['received']; r['payment_status']='PAID' if not r['balance'] else 'PARTIAL' if r['received'] else 'UNPAID'
+            r=dict(row); r['credit']=credits.get(r['id'],0);r['refunded']=refunds.get(r['id'],0);r['net_total']=r['total']-r['credit'];r['balance']=r['net_total']-r['received']+r['refunded']; r['payment_status']='CREDIT' if r['balance']<0 else 'PAID' if not r['balance'] else 'PARTIAL' if r['received'] else 'UNPAID'
             if request.args.get('q','').lower() not in (r['number']+' '+r['customer']).lower(): continue
             if request.args.get('from') and r['date']<request.args['from']: continue
             if request.args.get('to') and r['date']>request.args['to']: continue
@@ -179,7 +195,9 @@ def create_app(database=None, backend=None):
 
     @app.context_processor
     def context():
-        nav=[('dashboard','Dashboard','◫'),('billing','Billing','＋'),('proposals','Proposals','▧'),('invoices','Invoices','▤'),('service_reminders_page','Service reminders','◷'),('customers','Customers','♧'),('products','Products','◇'),('inventory','Inventory','▦'),('payments','Payments','↗'),('finance_page','Finance','₹'),('reports','Reports','▥'),('settings_page','Settings','⚙'),('company_users','Users','♙'),('company_roles','Roles','◇'),('subscription_page','Subscription','▤')]
+        nav=[('dashboard','Dashboard','◫'),('billing','Billing','＋'),('proposals','Proposals','▧'),('invoices','Invoices','▤'),('sales_returns_page','Sales returns','↶'),('service_reminders_page','Service reminders','◷'),('customers','Customers','♧'),('suppliers_page','Suppliers','♧'),('purchases_page','Purchases','▤'),('products','Products','◇'),('inventory','Inventory','▦'),('payments','Payments','↗'),('finance_page','Finance','₹'),('accounts_page','Cash & banks','▤'),('reports','Reports','▥'),('settings_page','Settings','⚙'),('company_users','Users','♙'),('company_roles','Roles','◇'),('subscription_page','Subscription','▤')]
+        trade_ready=bool(backend.database.counters.find_one({'_id':'account_transfers'},{'_id':1})) if 'user' in session else False
+        nav=[entry for entry in nav if entry[0] not in trade_permissions or trade_ready]
         policy=g.get('access')
         if policy:
             nav=[entry for entry in nav if entry[0]=='subscription_page' or (policy['state']=='ACTIVE' and required_permission(entry[0]) in policy['permissions'] and (entry[0] not in ('inventory','reports','company_users','company_roles') or policy['features'].get({'inventory':'inventory','reports':'reports','company_users':'multiple_users','company_roles':'multiple_users'}[entry[0]],False)))]
@@ -191,10 +209,11 @@ def create_app(database=None, backend=None):
                 if start.month==4 and start.day==1 and request.args.get('to')==f'{start.year+1}-03-31': financial_year=start.year
             except ValueError: pass
         financial_years=sorted(set(range(current_fy-4,current_fy+1))|{financial_year},reverse=True)
-        return dict(financial_year=financial_year,financial_years=financial_years,business=settings() if 'user' in session else DEFAULTS, today=today(), csrf=session.get('csrf'), nav=nav, available_plans=plans, policy=policy,permissions=PERMISSIONS)
+        return dict(trade_ready=trade_ready,bank_accounts=db().find('bank_accounts',{'archived':{'$ne':True}},projection={'id':1,'name':1}) if 'user' in session else [],financial_year=financial_year,financial_years=financial_years,business=settings() if 'user' in session else DEFAULTS, today=today(), csrf=session.get('csrf'), nav=nav, available_plans=plans, policy=policy,permissions=PERMISSIONS)
 
-    app.jinja_env.filters['inr'] = lambda x: f'₹{x/100:,.2f}'
-    app.jinja_env.filters['qty'] = lambda x: f'{x/1000:g}'
+    app.jinja_env.filters['inr'] = lambda x: f'₹{Decimal(x)/100:,.2f}'
+    app.jinja_env.filters['qty'] = lambda x: f'{Decimal(x)/1000:g}'
+    app.jinja_env.filters['unit_rate'] = rate_text
 
     @app.errorhandler(ValueError)
     def invalid(error):
@@ -289,11 +308,11 @@ def create_app(database=None, backend=None):
             return render_template('limited_dashboard.html',title='Company workspace')
         invoices=all_invoices(); active=[i for i in invoices if i['status']=='FINAL']; products=product_rows()
         pay=payment_rows()
-        metrics=dict(today=sum(i['total'] for i in active if i['date']==today()),month=sum(i['total'] for i in active if i['date'][:7]==today()[:7]),outstanding=sum(i['balance'] for i in active),received=sum(p['amount'] for p in pay),invoices=len(active),products=len(products),low=sum(0<p['quantity']<=int(p['data']['min_stock']) for p in products),out=sum(p['quantity']<=0 for p in products))
+        metrics=dict(today=sum(i.get('net_total',i['total']) for i in active if i['date']==today()),month=sum(i.get('net_total',i['total']) for i in active if i['date'][:7]==today()[:7]),outstanding=sum(i['balance'] for i in active),received=sum(p['amount'] for p in pay),invoices=len(active),products=len(products),low=sum(0<p['quantity']<=int(p['data']['min_stock']) for p in products),out=sum(p['quantity']<=0 for p in products))
         chart=[]
         for n in range(6,-1,-1):
             day=(date.fromisoformat(today())-timedelta(days=n)).isoformat()
-            chart.append(dict(day=day[5:],sales=sum(i['total'] for i in active if i['date']==day),collections=sum(p['amount'] for p in pay if p['date']==day)))
+            chart.append(dict(day=day[5:],sales=sum(i.get('net_total',i['total']) for i in active if i['date']==day),collections=sum(p['amount'] for p in pay if p['date']==day)))
         return render_template('dashboard.html',title='Business overview',metrics=metrics,invoices=invoices[:5],payments=pay[:5],chart=chart,service_due=sum(row['service_stage']=='due' for row in service_reminders()),maximum=max([c['sales'] for c in chart]+[c['collections'] for c in chart]+[1]))
 
     def service_reminders():
@@ -329,7 +348,7 @@ def create_app(database=None, backend=None):
         return public_home()
 
     def product_rows():
-        rows=db().find('products',sort=[('name',1)])
+        rows=db().find('products',sort=[('name',1)],projection={'data.photo':0})
         levels={i['product_id']:i['quantity'] for i in db().find('inventory')}
         for r in rows: r['quantity']=levels.get(r['id'],0)
         return rows
@@ -393,7 +412,10 @@ def create_app(database=None, backend=None):
                 else:
                     name=request.form.get('name','').strip()
                     if not name: raise ValueError('Customer name is required.')
-                    data={k:request.form.get(k,'').strip() for k in ('phone','email','address','gstin','state','pin','notes')}
+                    from party_data import customer_fields
+                    previous=owned('customers',ident) if ident else None
+                    data=customer_fields(request.form,previous['data'] if previous else {},money)
+                    if previous and data.get('opening_balance',0)!=previous['data'].get('opening_balance',0) and (db().count('invoices',{'customer_id':previous['id']}) or db().count('trade_payments',{'customer_id':previous['id']})): raise ValueError('Opening balance cannot change after invoice history exists.')
                     if ident: db().update('customers',{'id':ident},{'name':name,'data':data})
                     else: ident=db().insert('customers',dict(name=name,data=data,archived=0))
                     audit('save','customer',ident)
@@ -401,6 +423,10 @@ def create_app(database=None, backend=None):
         rows=db().find('customers',{'archived':0},sort=[('name',1)])
         balances={}
         last_invoices={}
+        opening_settlements={}
+        for payment in db().find('trade_payments',{'opening_effect':{'$exists':True}}):
+            cid=payment.get('customer_id')
+            if cid: opening_settlements[cid]=opening_settlements.get(cid,0)+payment['opening_effect']
         for inv in all_invoices():
             cid = inv.get('customer_id')
             if inv['status']=='FINAL':
@@ -409,24 +435,24 @@ def create_app(database=None, backend=None):
                 if cid not in last_invoices or inv.get('date', '') > last_invoices[cid].get('date', ''):
                     last_invoices[cid] = inv
         for r in rows:
-            r['balance']=balances.get(r['id'],0)
+            r['balance']=balances.get(r['id'],0)+r['data'].get('opening_balance',0)+opening_settlements.get(r['id'],0)
             r['last_invoice']=last_invoices.get(r['id'])
         if request.args.get('export')=='csv':
             output = io.StringIO()
             writer = csv.writer(output)
             writer.writerow(['ID', 'Customer Name', 'Phone', 'Email', 'Address', 'State', 'PIN', 'GSTIN', 'Balance', 'Notes'])
             for r in rows:
-                writer.writerow([r['id'], r['name'], r['data'].get('phone',''), r['data'].get('email',''), r['data'].get('address',''), r['data'].get('state',''), r['data'].get('pin',''), r['data'].get('gstin',''), f"{r['balance']/100:.2f}", r['data'].get('notes','')])
+                writer.writerow([csv_safe(v) for v in [r['id'], r['name'], r['data'].get('phone',''), r['data'].get('email',''), r['data'].get('address',''), r['data'].get('state',''), r['data'].get('pin',''), r['data'].get('gstin',''), f"{r['balance']/100:.2f}", r['data'].get('notes','')]])
             return Response(output.getvalue(), mimetype='text/csv', headers={'Content-Disposition': 'attachment; filename="customers.csv"'})
         edit=owned('customers',request.args['edit']) if request.args.get('edit') else None
         if edit:
             edit['data']=dict(edit['data'])
-            edit['balance']=balances.get(edit['id'], balances.get(str(edit['id']), 0))
+            edit['balance']=balances.get(edit['id'], balances.get(str(edit['id']), 0))+edit['data'].get('opening_balance',0)
         history=[i for i in all_invoices() if str(i['customer_id'])==request.args.get('view')] if request.args.get('view') else []
         profile=owned('customers',request.args['view']) if request.args.get('view') else None
         if profile:
             profile['data']=dict(profile['data'])
-            profile['balance']=balances.get(profile['id'], balances.get(str(profile['id']), 0))
+            profile['balance']=balances.get(profile['id'], balances.get(str(profile['id']), 0))+profile['data'].get('opening_balance',0)+opening_settlements.get(profile['id'],0)
         history_inv_ids = {inv['id'] for inv in history}
         cust_payments = [p for p in db().find('payments',sort=[('date',-1)]) if p.get('invoice_id') in history_inv_ids] if history else []
         cust_proposals = [p for p in db().find('proposals',{'customer_id':profile['id'],'deleted':{'$ne':True}},sort=[('created_at',-1)])] if profile else []
@@ -452,6 +478,8 @@ def create_app(database=None, backend=None):
                 data={key:row.get(key,'') for key in ('category','description','hsn','unit')}
                 data['unit']=data['unit'] or 'PCS'
                 data.update(gst=str(gst),min_stock=quantity(row.get('min_stock') or '0',allow_zero=True))
+                data=product_options({k:v for k,v in row.items() if v or k in ('alternate_unit','wholesale_price')},data,money)
+                if data['kind']=='SERVICE' and stock: raise ValueError('Services cannot have opening stock.')
                 values=dict(name=name,sku=sku,data=data,active=1,selling_price=money(row['selling_price']),purchase_price=money(row.get('purchase_price') or '0'),mrp=money(row.get('mrp') or '0'))
                 prepared.append((values,stock))
             except (ValueError,InvalidOperation) as error:
@@ -480,7 +508,7 @@ def create_app(database=None, backend=None):
             return import_products()
         if request.method=='POST':
             ident=request.form.get('id')
-            if ident: owned('products',ident)
+            previous=owned('products',ident) if ident else None
             with db():
                 if request.form.get('action')=='delete':
                     db().update('products',{'id':ident},{'active':0}); audit('archive','product',ident)
@@ -491,7 +519,17 @@ def create_app(database=None, backend=None):
                     gst=Decimal(request.form.get('gst','0'))
                     if gst not in rates: raise ValueError('Choose a configured GST rate.')
                     minimum=quantity(request.form.get('min_stock') or '0',allow_zero=True)
-                    data={k:request.form.get(k,'').strip() for k in ('category','description','hsn','unit')}; data.update(gst=str(gst),min_stock=minimum)
+                    data=dict(previous['data']) if previous else {}
+                    data.update({k:request.form.get(k,'').strip() for k in ('category','description','hsn','unit')}); data.update(gst=str(gst),min_stock=minimum)
+                    data=product_options(request.form,data,money)
+                    if previous and (data['kind']!=previous['data'].get('kind','STOCK') or data['unit']!=previous['data'].get('unit','PCS')):
+                        linked=db().one('invoice_items',{'product_id':previous['id']}) or any(db().one(name,{'items.product_id':previous['id']}) for name in ('proposals','purchases','purchase_orders'))
+                        if linked or db().one('inventory',{'product_id':previous['id'],'quantity':{'$ne':0}}): raise ValueError('Primary unit and stock/service classification are locked while stock or document history exists.')
+                    upload=request.files.get('photo')
+                    if upload and upload.filename:
+                        from product_media import thumbnail
+                        data.update(photo=thumbnail(upload),has_photo=True)
+                    if request.form.get('remove_photo'): data.pop('photo',None);data['has_photo']=False
                     category=db().one('categories',{'name':data['category']})
                     cid=category['id'] if category else db().insert('categories',{'name':data['category']})
                     active=int(request.form.get('active','1'))
@@ -501,6 +539,7 @@ def create_app(database=None, backend=None):
                     else:
                         ident=db().insert('products',values)
                         qty=quantity(request.form.get('stock') or '0',allow_zero=True)
+                        if data['kind']=='SERVICE' and qty: raise ValueError('Services cannot have opening stock.')
                         db().insert('inventory',dict(product_id=ident,quantity=qty))
                         db().insert('stock_movements',dict(product_id=ident,invoice_id=None,quantity=qty,reason='Opening stock'))
                     audit('save','product',ident)
@@ -508,12 +547,20 @@ def create_app(database=None, backend=None):
         rows=product_rows(); edit=next((p for p in rows if str(p['id'])==request.args.get('edit')),None)
         return render_template('products.html',title='Products',rows=rows,edit=edit)
 
+    @app.get('/products/<int:ident>/photo')
+    def product_photo(ident):
+        import base64
+        product=owned('products',ident)
+        if not product['data'].get('photo'): abort(404)
+        return Response(base64.b64decode(product['data']['photo']),mimetype='image/jpeg',headers={'Cache-Control':'private, no-store','X-Content-Type-Options':'nosniff'})
+
     def move(pid, delta, reason, iid=None):
         if not g.access['features'].get('inventory'):
             raise ValueError('Inventory is disabled by your subscription. Use nonstock invoice lines or change the plan before billing tracked products.')
         if iid is not None and g.access['company'].get('inventory_reconciliation_required'):
             raise ValueError('The company administrator must reconcile stock after enabling inventory.')
         p=owned('products',pid)
+        if p['data'].get('kind')=='SERVICE': raise ValueError('Services do not have physical stock.')
         level=db().one('inventory',{'product_id':pid})
         if not level: raise ValueError('Inventory record missing.')
         current=level['quantity']
@@ -539,6 +586,7 @@ def create_app(database=None, backend=None):
     def proposals():
         if request.method=='POST':
             proposal=owned('proposals',request.form.get('id'))
+            if proposal.get('stock_dispatched'): raise ValueError('Dispatched challans must be cancelled or invoiced from their document page.')
             if proposal.get('invoice_id') or proposal['status']=='CONVERTED': raise ValueError('Converted proposals are locked.')
             if str(proposal['version'])!=request.form.get('version'): raise ValueError('Proposal changed in another window. Reload before changing its stage.')
             stage=request.form.get('status')
@@ -554,13 +602,14 @@ def create_app(database=None, backend=None):
             headers=['Proposal','Title','Customer','Date','Valid until','Status','Total (INR)']
             data=[[r['number'],r['title'],r['snapshot']['customer']['name'],r['date'],r['valid_until'],r['status'],f"{r['total']/100:.2f}"] for r in rows]
             output=io.StringIO(); writer=csv.writer(output)
-            writer.writerow(headers); writer.writerows(data)
+            writer.writerow(headers); writer.writerows([[csv_safe(v) for v in row] for row in data])
             return Response('\ufeff'+output.getvalue(),mimetype='text/csv',headers={'Content-Disposition':'attachment; filename=proposals.csv'})
         return render_template('proposals.html',title='Proposals',rows=rows,all_proposals=all_rows)
 
     @app.route('/proposals/new',methods=['GET','POST'])
     def proposal_form():
         old=owned('proposals',request.form['id']) if request.method=='POST' and request.form.get('id') else owned('proposals',request.args['edit']) if request.args.get('edit') else None
+        if old and old.get('stock_dispatched'): raise ValueError('A dispatched challan cannot be edited. Cancel dispatch first.')
         if old and old.get('invoice_id'): raise ValueError('Converted proposals are locked. Create a new proposal for revisions.')
         if request.method=='POST':
             if old and str(old['version'])!=request.form.get('version'): raise ValueError('Proposal changed in another window. Reload before editing.')
@@ -580,21 +629,26 @@ def create_app(database=None, backend=None):
             raw=json.loads(request.form.get('items','[]'))
             if not isinstance(raw,list) or not 1<=len(raw)<=200 or any(not isinstance(row,dict) for row in raw): raise ValueError('Add between 1 and 200 valid proposal items.')
             items=[]; rates=[Decimal(rate) for rate in business['gst_rates'].split(',')]
-            for row in raw:
+            for index,row in enumerate(raw):
                 product=owned('products',row['product_id']) if row.get('product_id') else None
                 if product and not product['active']: raise ValueError('Choose an active product.')
                 name=str(row.get('name','')).strip(); hsn=str(row.get('hsn','')); unit=product['data']['unit'] if product else str(row.get('unit','PCS'))
                 gst=Decimal(str(row.get('gst','0')))
                 if not name or len(name)>150 or len(hsn)>30 or len(unit)>30 or gst not in rates: raise ValueError('Check item names, HSN, units and configured GST rates.')
                 items.append(dict(product_id=product['id'] if product else None,name=name,hsn=hsn,unit=unit,quantity=quantity(row.get('quantity')),rate=money(row.get('rate')),mrp=money(row.get('mrp',row.get('rate'))),discount=money(row.get('discount','0')),gst=str(gst)))
+                original=next((i for i in old['items'] if i.get('line_key')==row.get('line_key') and i.get('line_key') is not None),None) if old else None
+                units=line_units(row,product,quantity,original)
+                items[-1].update(units,line_key=str(index));items[-1].update(line_pricing(row,product,units,kind,money,rounded))
             totals=calculate(items,kind,business['state'].strip().lower()!=customer['data']['state'].strip().lower())
             if totals['total']>9_000_000_000_000_000: raise ValueError('Proposal total exceeds the supported financial limit.')
             snapshot=dict(business=business,customer=customer,terms=request.form.get('terms',''),installation='',service='')
-            values=dict(title=title,date=day,valid_until=until,description=request.form.get('description','').strip(),customer_id=customer['id'],type=kind,status=status,snapshot=snapshot,items=items,**totals)
+            document_kind=request.form.get('document_kind','QUOTATION')
+            if document_kind not in ('QUOTATION','PROFORMA','CHALLAN'): raise ValueError('Choose a valid sales document type.')
+            values=dict(document_kind=document_kind,title=title,date=day,valid_until=until,description=request.form.get('description','').strip(),customer_id=customer['id'],type=kind,status=status,snapshot=snapshot,items=items,**totals)
             if old:
                 ident=old['id']; db().update('proposals',{'id':ident},values,inc={'version':1})
             else:
-                number=f"PROP/{date.fromisoformat(day).year}/{db().count('proposals')+1:04d}"
+                number=f"{dict(QUOTATION='PROP',PROFORMA='PRO',CHALLAN='DC')[document_kind]}/{date.fromisoformat(day).year}/{db().count('proposals')+1:04d}"
                 ident=db().insert('proposals',dict(values,number=number,version=1,submission=token))
             audit('edit' if old else 'create','proposal',ident,json.dumps(dict(previous=old,current=values)))
             flash('Proposal saved. Stock and payments are unchanged.'); return redirect(url_for('view_proposal',ident=ident))
@@ -618,13 +672,14 @@ def create_app(database=None, backend=None):
                 if source:
                     if old: raise ValueError('A proposal can only create a new invoice.')
                     if source.get('invoice_id'): return redirect(url_for('view_invoice',ident=source['invoice_id']))
-                    if source['status']=='DECLINED' or source['valid_until']<today(): raise ValueError('This proposal is declined or expired. Revise it before conversion.')
+                    if source['status']=='DECLINED' or (source.get('document_kind')!='CHALLAN' and source['valid_until']<today()): raise ValueError('This proposal is declined or expired. Revise it before conversion.')
                     if str(source['version'])!=request.form.get('proposal_version'): raise ValueError('Proposal changed. Reopen the conversion form before saving.')
                 submission=request.form.get('submission','')
                 if not old:
                     if len(submission)!=64: raise ValueError('Invalid submission token. Reload the billing page.')
                     existing=db().one('invoice_submissions',{'token':submission})
                     if existing: return redirect(url_for('view_invoice',ident=existing['invoice_id']))
+                if old and old.get('has_credit_notes'): raise ValueError('Invoices with credit notes cannot be edited. Preserve the original document.')
                 if old and old['status']!='FINAL': raise ValueError('Cancelled invoices cannot be edited.')
                 if old and str(old['version'])!=request.form.get('version'): raise ValueError('Invoice changed in another window. Reload before editing.')
                 customer=owned('customers',request.form['customer'])
@@ -647,19 +702,37 @@ def create_app(database=None, backend=None):
                     if not name or len(name)>150 or len(str(raw.get('hsn','')))>30: raise ValueError('Every item needs a name (up to 150 characters) and a valid HSN/SAC field.')
                     gst=Decimal(str(raw.get('gst','0')))
                     if gst not in [Decimal(r) for r in business['gst_rates'].split(',')]: raise ValueError('Invalid GST rate.')
-                    items.append(dict(product_id=p['id'] if p else None,is_charge=is_charge,name=name,quantity=1000 if is_charge else quantity(raw['quantity']),rate=money(raw['rate']),mrp=0 if is_charge else money(raw.get('mrp',raw['rate'])),gst=str(gst),hsn=str(raw.get('hsn','')),discount=0 if is_charge else money(raw.get('discount','0')),unit='CHARGE' if is_charge else pd.get('unit',raw.get('unit','PCS'))))
+                    items.append(dict(product_id=p['id'] if p else None,is_charge=is_charge,description=pd.get('description','')[:2500],name=name,quantity=1000 if is_charge else quantity(raw['quantity']),rate=money(raw['rate']),mrp=0 if is_charge else money(raw.get('mrp',raw['rate'])),gst=str(gst),hsn=str(raw.get('hsn','')),discount=0 if is_charge else money(raw.get('discount','0')),unit='CHARGE' if is_charge else pd.get('unit',raw.get('unit','PCS'))))
+                    if not is_charge:
+                        history=old or source
+                        original=next((i for i in history['items'] if (i.get('id')==raw.get('id') and i.get('id') is not None) or (source and i.get('line_key')==raw.get('line_key') and i.get('line_key') is not None)),None) if history else None
+                        units=line_units(raw,p,quantity,original)
+                        items[-1].update(units);items[-1].update(line_pricing(raw,p,units,kind,money,rounded))
                 if not items or len(items)>200: raise ValueError('Add between 1 and 200 items.')
+                if source and source.get('stock_dispatched'):
+                    def stock_totals(lines):
+                        totals={}
+                        for line in lines:
+                            if line.get('product_id'): totals[line['product_id']]=totals.get(line['product_id'],0)+primary_quantity(line)
+                        return totals
+                    if stock_totals(items)!=stock_totals(source['items']): raise ValueError('Dispatched product quantities must match the delivery challan.')
                 totals=calculate(items,kind,business['state'].strip().lower()!=customer['data']['state'].strip().lower(),common_discount=money(request.form.get('common_discount') or '0') if 'common_discount' in request.form else None,round_total=request.form.get('round_total')=='1')
                 if totals['total']>9_000_000_000_000_000: raise ValueError('Invoice total exceeds the supported financial limit.')
                 received=money(request.form.get('received','0')) if not old else old['received']
                 if received>totals['total']: raise ValueError('Received amount cannot exceed invoice total. Resolve existing payments before reducing the invoice.')
-                snapshot=dict(round_total=request.form.get('round_total')=='1',business=business,customer=customer,terms=request.form.get('terms',''),notes=request.form.get('notes','').strip(),installation=request.form.get('installation',''),service=request.form.get('service',''))
+                credit_limit=customer['data'].get('credit_limit',0)
+                if credit_limit:
+                    others=db().find('invoices',{'customer_id':customer['id'],'status':'FINAL','deleted':{'$ne':True},'id':{'$ne':old['id'] if old else None}})
+                    ids=[document['id'] for document in others]
+                    outstanding=customer['data'].get('opening_balance',0)+sum(p.get('opening_effect',0) for p in db().find('trade_payments',{'customer_id':customer['id']}))+sum(document['total'] for document in others)-sum(payment['amount'] for payment in db().find('payments',{'invoice_id':{'$in':ids}}))-sum(note['total'] for note in db().find('sales_returns',{'invoice_id':{'$in':ids}}))+sum(payment['amount'] for payment in db().find('trade_payments',{'invoice_id':{'$in':ids},'kind':'CUSTOMER_REFUND'}))
+                    if outstanding+totals['total']-received>credit_limit: raise ValueError('This invoice would exceed the customer credit limit. Increase the limit or record a larger payment.')
+                snapshot=dict(po_number=request.form.get('po_number','').strip(),vehicle_number=request.form.get('vehicle_number','').strip(),due_date=(date.fromisoformat(day)+timedelta(days=customer['data'].get('credit_days',0))).isoformat(),round_total=request.form.get('round_total')=='1',business=business,customer=customer,terms=request.form.get('terms',''),notes=request.form.get('notes','').strip(),installation=request.form.get('installation',''),service=request.form.get('service',''))
                 for k in ('installation','service'):
                     if snapshot[k]: date.fromisoformat(snapshot[k])
                 values=dict(customer_id=customer['id'],date=day,type=kind,snapshot=snapshot,**totals)
                 if old:
                     for item in old['items']:
-                        if item['product_id']: move(item['product_id'],item['quantity'],'Invoice edit reversal',old['id'])
+                        if item['product_id'] and primary_quantity(item): move(item['product_id'],primary_quantity(item),'Invoice edit reversal',old['id'])
                     db().update('invoices',{'id':old['id']},values,inc={'version':1})
                     db().delete('invoice_items',{'invoice_id':old['id']}); iid=old['id']
                 else:
@@ -674,11 +747,12 @@ def create_app(database=None, backend=None):
                     db().insert('invoice_submissions',dict(token=submission,invoice_id=iid))
                 for item in items:
                     db().insert('invoice_items',dict(item,invoice_id=iid))
-                    if item['product_id']: move(item['product_id'],-item['quantity'],'Invoice sale',iid)
+                    if item['product_id'] and primary_quantity(item) and not (source and source.get('stock_dispatched')): move(item['product_id'],-primary_quantity(item),'Invoice sale',iid)
                 if received and not old:
                     method=request.form.get('method','Cash')
                     if method not in ('Cash','UPI','Bank Transfer','Card','Cheque','Other'): raise ValueError('Invalid payment method.')
-                    pid=db().insert('payments',dict(invoice_id=iid,amount=received,date=day,method=method,reference='',notes='Initial payment'))
+                    ledger=account_key(db(),request.form.get('ledger_account'),'Cash' if method=='Cash' else 'Other' if method=='Other' else 'Bank',day)
+                    pid=db().insert('payments',dict(invoice_id=iid,amount=received,date=day,method=method,ledger_account=ledger,reference='',notes='Initial payment'))
                     audit('record','payment',pid)
                 audit('edit' if old else 'finalize','invoice',iid,json.dumps(dict(previous=old,current=dict(totals=totals,items=items,snapshot=snapshot))))
                 if source:
@@ -690,7 +764,7 @@ def create_app(database=None, backend=None):
         source=owned('proposals',request.args['proposal']) if request.args.get('proposal') else None
         if source:
             if source.get('invoice_id'): return redirect(url_for('view_invoice',ident=source['invoice_id']))
-            if source['status']=='DECLINED' or source['valid_until']<today(): raise ValueError('This proposal is declined or expired. Revise it before conversion.')
+            if source['status']=='DECLINED' or (source.get('document_kind')!='CHALLAN' and source['valid_until']<today()): raise ValueError('This proposal is declined or expired. Revise it before conversion.')
             edit=source; duplicate=True
         customers=db().find('customers',{'archived':0},sort=[('name',1)])
         return render_template('billing.html',title='Create invoice' if not edit or duplicate else 'Edit invoice',products=product_rows(),customers=customers,edit=edit,duplicate=duplicate,submission=secrets.token_hex(32),proposal_source=source,categories=db().find('categories',sort=[('name',1)]))
@@ -712,10 +786,11 @@ def create_app(database=None, backend=None):
 
     def cancel_invoice(ident):
         inv=invoice(ident)
+        if inv.get('has_credit_notes'): raise ValueError('Invoices with credit notes cannot be cancelled or deleted.')
         if inv['received']: raise ValueError('Invoices with payments cannot be cancelled or deleted. Payment history is preserved.')
         if inv['status']=='FINAL':
             for item in inv['items']:
-                if item['product_id']: move(item['product_id'],item['quantity'],'Invoice cancellation',ident)
+                if item['product_id'] and primary_quantity(item): move(item['product_id'],primary_quantity(item),'Invoice cancellation',ident)
             db().update('invoices',{'id':ident},{'status':'CANCELLED'},inc={'version':1})
             audit('cancel','invoice',ident,request.form.get('reason','Cancelled by owner'))
         return inv
@@ -741,21 +816,30 @@ def create_app(database=None, backend=None):
     def payments():
         if request.method=='POST':
             with db():
+                token=request.form.get('submission')
+                if token is not None and len(token)!=64: raise ValueError('Refresh Payments before recording a payment.')
+                if token and not request.form.get('id'):
+                    existing=db().one('payments',{'submission':token})
+                    if existing: return redirect(url_for('view_invoice',ident=existing['invoice_id']))
                 previous=owned('payments',request.form['id']) if request.form.get('id') else None
                 if previous and str(previous.get('version',1))!=request.form.get('version'): raise ValueError('Payment changed in another window. Reload before editing.')
                 if previous and str(previous['invoice_id'])!=request.form.get('invoice'): raise ValueError('A recorded payment cannot be moved to another invoice.')
                 inv=invoice(previous['invoice_id'] if previous else request.form['invoice'])
+                if previous and inv.get('refunded'): raise ValueError('Payments on refunded invoices cannot be edited. Preserve the refund history.')
                 amount=money(request.form['amount']); day=date.fromisoformat(request.form['date']).isoformat()
                 method=request.form['method']
                 if method not in ('Cash','UPI','Bank Transfer','Card','Cheque','Other'): raise ValueError('Invalid payment method.')
                 available=inv['balance']+(previous['amount'] if previous else 0)
                 if inv['status']!='FINAL' or not 0<amount<=available: raise ValueError('Payment must be positive and cannot exceed the invoice total after other payments.')
-                values=dict(amount=amount,date=day,method=method,reference=request.form.get('reference','').strip(),notes=request.form.get('notes','').strip())
+                prior_account=previous.get('ledger_account','') if previous else ''
+                if prior_account.startswith('legacy:'): prior_account=''
+                ledger=account_key(db(),request.form.get('ledger_account',prior_account),'Cash' if method=='Cash' else 'Other' if method=='Other' else 'Bank',day)
+                values=dict(ledger_account=ledger,amount=amount,date=day,method=method,reference=request.form.get('reference','').strip(),notes=request.form.get('notes','').strip())
                 if previous:
                     pid=previous['id']; db().update('payments',{'id':pid},values|{'version':previous.get('version',1)+1})
                     audit('edit','payment',pid,json.dumps(dict(previous=previous,current=values)))
                 else:
-                    pid=db().insert('payments',dict(values,invoice_id=inv['id'],version=1))
+                    pid=db().insert('payments',dict(values,invoice_id=inv['id'],version=1,**({'submission':token} if token else {})))
                     audit('record','payment',pid)
             flash('Payment updated.' if previous else 'Payment recorded.'); return redirect(url_for('view_invoice',ident=inv['id']))
         edit=owned('payments',request.args['edit']) if request.args.get('edit') else None
@@ -763,7 +847,7 @@ def create_app(database=None, backend=None):
         if edit and invoice(edit['invoice_id'])['status']!='FINAL': raise ValueError('Payments on cancelled invoices cannot be edited.')
         rows=payment_rows()
         invoices=[i for i in all_invoices() if i['status']=='FINAL' and (i['balance']>0 or edit and i['id']==edit['invoice_id'])]
-        return render_template('payments.html',title='Edit payment' if edit else 'Payments',rows=rows,invoices=invoices,edit=edit)
+        return render_template('payments.html',title='Edit payment' if edit else 'Payments',rows=rows,invoices=invoices,edit=edit,submission=secrets.token_hex(32))
 
     @app.route('/settings',methods=['GET','POST'])
     def settings_page():
@@ -885,10 +969,11 @@ def create_app(database=None, backend=None):
             elif kind=='Stock movement':
                 headers=['Date','Product','Quantity','Reason']; data=movement_rows(); rows=[[r['created_at'],r['name'],r['quantity']/1000,r['reason']] for r in data if (not request.args.get('from') or r['created_at'][:10]>=request.args['from']) and (not request.args.get('to') or r['created_at'][:10]<=request.args['to'])]
             else:
-                headers=['Product','Quantity','Sales (INR)']; aggregate={}
+                headers=['Product','Quantity','Unit','Sales (INR)']; aggregate={}
                 for inv in invoices:
                     for item in invoice(inv['id'])['items']:
-                        k=(item['product_id'],item['name']); a=aggregate.setdefault(k,[item['name'],0,0]); a[1]+=item['quantity']/1000; a[2]+=item['total']/100
+                        unit=item.get('primary_unit',item['unit']) if item.get('product_id') and not item.get('is_service') else item['unit']
+                        k=(item['product_id'],item['name'],unit); a=aggregate.setdefault(k,[item['name'],0,unit,0]); a[1]+=(primary_quantity(item) if item.get('product_id') and not item.get('is_service') else item['quantity'])/1000; a[3]+=item['total']/100
                 rows=list(aggregate.values())
         else:
             if kind=='Daily sales': invoices=[i for i in invoices if i['date']==request.args.get('from',today())]
@@ -910,7 +995,10 @@ def create_app(database=None, backend=None):
         return 'Database temporarily unavailable. Please try again shortly.',503
 
     def required_permission(endpoint):
-        return {'finance_page':'finance.view','finance_receipt':'finance.view','service_reminders_page':'invoice.view','proposals':'invoice.view','proposal_form':'invoice.create','view_proposal':'invoice.view','proposal_pdf':'invoice.view','dashboard':'dashboard.view','billing':'invoice.create','invoices':'invoice.view','view_invoice':'invoice.view','invoice_pdf':'invoice.view','delete_invoice':'invoice.cancel','restore_invoice':'invoice.cancel','cancel':'invoice.cancel','customers':'customer.view','products':'product.view','inventory':'inventory.view','payments':'payment.view','reports':'report.view','settings_page':'settings.manage','company_users':'user.manage','company_roles':'role.manage'}.get(endpoint)
+        if endpoint=='note_pdf' and request.view_args.get('note_kind')=='purchase': return 'purchase.view'
+        if endpoint=='party_import': return 'supplier.view' if request.values.get('target')=='suppliers' else 'customer.view'
+        if endpoint in trade_permissions: return trade_permissions[endpoint][0]
+        return {'finance_page':'finance.view','finance_receipt':'finance.view','service_reminders_page':'invoice.view','proposals':'invoice.view','proposal_form':'invoice.create','view_proposal':'invoice.view','proposal_pdf':'invoice.view','dashboard':'dashboard.view','billing':'invoice.create','invoices':'invoice.view','view_invoice':'invoice.view','invoice_pdf':'invoice.view','delete_invoice':'invoice.cancel','restore_invoice':'invoice.cancel','cancel':'invoice.cancel','customers':'customer.view','products':'product.view','product_photo':'product.view','inventory':'inventory.view','payments':'payment.view','reports':'report.view','settings_page':'settings.manage','company_users':'user.manage','company_roles':'role.manage'}.get(endpoint)
 
     def authorize(endpoint):
         policy=access(db(),session['user']); g.access=policy
@@ -922,6 +1010,13 @@ def create_app(database=None, backend=None):
             return
         if policy['state']!='ACTIVE': return redirect(url_for('subscription_page'))
         permission=required_permission(endpoint)
+        if endpoint in trade_permissions:
+            if endpoint!='business_profile' and not backend.database.counters.find_one({'_id':'account_transfers'},{'_id':1},session=db().mongo_session):
+                abort(503,'Purchasing setup is pending. Ask the owner to run the reviewed additive migration after backup verification.')
+            if endpoint=='opening_payment' and request.view_args.get('party_kind')=='suppliers': permission='purchase.manage'
+            elif request.method=='POST': permission=('supplier.manage' if request.values.get('target')=='suppliers' else 'customer.manage') if endpoint=='party_import' else trade_permissions[endpoint][1]
+            if endpoint in ('purchases_page','purchase_detail') and not policy['features'].get('inventory'): abort(403)
+            if request.args.get('export') and 'report.export' not in policy['permissions']: abort(403)
         if endpoint=='billing_customer': permission='customer.manage'
         if endpoint=='billing_product': permission='product.manage'
         if endpoint=='finance_page' and request.method=='POST': permission='finance.manage'
@@ -1029,11 +1124,22 @@ def create_app(database=None, backend=None):
                 raise
         return guarded
 
+    from trade import install_trade
+    trade_permissions=install_trade(app,db,owned,audit,money,quantity,calculate,rounded,today,settings,product_rows,move,pdf_document)
+    from accounting_reports import install_accounting_reports
+    trade_permissions.update(install_accounting_reports(app,db,money,today,product_rows,pdf_document))
+    from accounts import install_accounts
+    trade_permissions.update(install_accounts(app,db,owned,audit,money,today))
+    from company_profile import install_profile
+    trade_permissions.update(install_profile(app,db,audit,settings))
+    for endpoint in trade_permissions:
+        app.view_functions[endpoint]=transactional(app.view_functions[endpoint])
+
     backend.ensure_finance_storage()
     from finance import install_finance
     install_finance(app,db,owned,audit,money,today,payment_rows,pdf_document)
 
-    for endpoint in ('finance_page','finance_receipt','register','billing_customer','billing_product','customers','products','inventory','billing','cancel','delete_invoice','restore_invoice','payments','settings_page','dashboard','invoices','view_invoice','invoice_pdf','reports','subscription_page','company_users','company_roles','service_reminders_page','proposals','proposal_form','view_proposal','proposal_pdf'):
+    for endpoint in ('finance_page','finance_receipt','register','billing_customer','billing_product','customers','products','product_photo','inventory','billing','cancel','delete_invoice','restore_invoice','payments','settings_page','dashboard','invoices','view_invoice','invoice_pdf','reports','subscription_page','company_users','company_roles','service_reminders_page','proposals','proposal_form','view_proposal','proposal_pdf'):
         app.view_functions[endpoint]=transactional(app.view_functions[endpoint])
 
     from password_recovery import install_recovery

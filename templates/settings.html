@@ -17,6 +17,7 @@
 {% endblock %}
 
 {% block content %}
+{% if trade_ready %}<div class="toolbar"><a class="secondary" href="/business-profile">Additional profile &amp; invoice printing</a></div>{% endif %}
 
 {# ========================================================================= #}
 {# ACTION REQUIRED: INVENTORY RECONCILIATION                                #}
@@ -604,7 +605,7 @@
           <fieldset style="border: 1px solid rgba(225, 29, 72, 0.25); border-radius: 8px; padding: 14px; background: #ffffff;">
             <legend style="padding: 0 6px; font-weight: 600; font-size: 12px; color: #0f172a;">Sections to reset</legend>
             <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 8px;">
-              {% for key, label in [('billing','1) Billing'),('proposals','2) Proposals'),('invoices','3) Invoices'),('customers','4) Customers'),('inventory','5) Inventory'),('products','6) Products'),('payments','7) Payments'),('finance','8) Finance'),('reports','9) Reports')] %}
+              {% for key, label in [('billing','1) Billing'),('proposals','2) Proposals'),('invoices','3) Invoices'),('customers','4) Customers'),('inventory','5) Inventory'),('products','6) Products'),('payments','7) Payments'),('finance','8) Finance'),('reports','9) Reports'),('purchases','10) Purchases & supplier payments'),('suppliers','11) Suppliers'),('accounts','12) Cash & bank accounts')] %}
                 <label style="display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-radius: 6px; background: #f8fafc; font-size: 12.5px; font-weight: 500; color: #334155; cursor: pointer;">
                   <input type="checkbox" name="sections" value="{{ key }}" style="width: 15px; height: 15px;">
                   <span>{{ label }}</span>
@@ -635,7 +636,7 @@
         <div style="display: flex; flex-direction: column; gap: 3px; max-width: 640px;">
           <h3 style="font-size: 15px; font-weight: 600; color: #be123c; margin: 0;">Permanently reset company data</h3>
           <p style="font-size: 13px; color: #64748b; margin: 0; line-height: 1.45;">
-            Permanently purges all financial ledgers, GST filings, inventory records, and counterparty contacts. Workspace returns to clean Day 0 state.
+            Permanently purges all financial ledgers, GST summaries, inventory records, and counterparty contacts. Workspace returns to clean Day 0 state.
           </p>
         </div>
         <button type="button" class="stitch-danger-btn-fill" id="toggle-company-reset-btn">
