@@ -9,7 +9,7 @@ from pymongo.errors import CollectionInvalid
 from pymongo.read_concern import ReadConcern
 from pymongo.write_concern import WriteConcern
 
-TENANT_COLLECTIONS = {'users','business_settings','customers','categories','products','inventory','stock_movements','invoices','invoice_items','payments','audit_events','invoice_submissions','roles','subscriptions','renewal_requests','proposals','finance_entries'}
+TENANT_COLLECTIONS = {'users','business_settings','customers','categories','products','inventory','stock_movements','invoices','invoice_items','payments','audit_events','invoice_submissions','roles','subscriptions','renewal_requests','proposals','finance_entries','suppliers','purchases','purchase_orders','trade_payments','trade_returns','party_imports','sales_returns','bank_accounts','account_transfers'}
 COLLECTIONS = TENANT_COLLECTIONS | {'businesses'}
 ID_FIELDS = {'id','business_id','customer_id','product_id','invoice_id','category_id','user_id','entity_id'}
 MONEY_FIELDS = {'selling_price','purchase_price','mrp','rate','subtotal','discount','taxable','cgst','sgst','igst','total','amount'}
@@ -74,8 +74,23 @@ class MongoBackend:
         maximum=self.database.finance_entries.find_one(sort=[('id',-1)],projection={'id':1})
         self.database.counters.update_one({'_id':'finance_entries'},{'$max':{'value':Int64(maximum['id'] if maximum else 0)}},upsert=True)
 
+    def ensure_trade_storage(self):
+        self.database.payments.create_index([('business_id',1),('submission',1)],unique=True,partialFilterExpression={'submission':{'$type':'string'}},name='unique_payment_submission')
+        for name in ('suppliers','purchases','purchase_orders','trade_payments','trade_returns','party_imports','sales_returns','bank_accounts','account_transfers'):
+            fields=['id','business_id','name','data','archived'] if name=='suppliers' else ['id','business_id','date','submission']
+            schema={'bsonType':'object','required':fields,'properties':{
+                'id':{'bsonType':['int','long']},'business_id':{'bsonType':['int','long']}}}
+            try: self.database.create_collection(name,validator={'$jsonSchema':schema})
+            except CollectionInvalid: pass
+            self.database[name].create_index('id',unique=True)
+            self.database[name].create_index('business_id')
+            if name!='suppliers': self.database[name].create_index([('business_id',1),('submission',1)],unique=True)
+            maximum=self.database[name].find_one(sort=[('id',-1)],projection={'id':1})
+            self.database.counters.update_one({'_id':name},{'$max':{'value':Int64(maximum['id'] if maximum else 0)}},upsert=True)
+
     def initialize(self):
         """Run at installation/migration, never during each web request."""
+        self.ensure_trade_storage()
         required={
             'businesses':['id','name'], 'users':['id','business_id','email','password_hash'],
             'business_settings':['business_id','data'], 'customers':['id','business_id','name','data'],
@@ -201,6 +216,21 @@ class MongoStore:
         doc.setdefault('created_at',datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S'))
         self.backend.database[name].insert_one(fixed_integers(doc),session=self.mongo_session)
         return doc.get('id')
+
+    def insert_many(self,name,documents):
+        self._require_transaction()
+        if name not in TENANT_COLLECTIONS or self.business_id is None: raise PermissionError('Tenant collection required.')
+        if not documents or len(documents)>4000: raise ValueError('Insert between 1 and 4000 records.')
+        sequence=self.backend.database.counters.find_one_and_update({'_id':name},{'$inc':{'value':Int64(len(documents))}},return_document=ReturnDocument.AFTER,session=self.mongo_session)
+        if not sequence: raise RuntimeError('Database schema is not prepared.')
+        first=int(sequence['value'])-len(documents)+1
+        prepared=[]
+        for offset,document in enumerate(documents):
+            if 'id' in document or 'business_id' in document: raise PermissionError('Record identity is assigned by storage.')
+            prepared.append(fixed_integers(dict(document,id=first+offset,business_id=self.business_id,created_at=datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S'))))
+        for offset in range(0,len(prepared),200):
+            self.backend.database[name].insert_many(prepared[offset:offset+200],session=self.mongo_session)
+        return list(range(first,first+len(documents)))
 
     def update(self,name,query,values=None,inc=None):
         self._require_transaction(); values=values or {}

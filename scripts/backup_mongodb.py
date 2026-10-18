@@ -9,7 +9,9 @@ from mongo_store import MongoBackend,load_configuration,COLLECTIONS
 from saas import PLATFORM_COLLECTIONS
 
 def backup(backend):
-    collections=sorted(COLLECTIONS | PLATFORM_COLLECTIONS | {'counters','migration_history'})
+    collections=sorted((set(backend.database.list_collection_names()) | COLLECTIONS | PLATFORM_COLLECTIONS | {'counters','migration_history'})-{'system.views'})
+    existing=set(backend.database.list_collection_names())
+    metadata={name:dict(options=backend.database[name].options(),indexes=list(backend.database[name].list_indexes())) for name in collections if name in existing}
     with backend.client.start_session() as session:
         def read(_):
             return {name:list(backend.database[name].find({},session=session)) for name in collections}
@@ -17,7 +19,7 @@ def backup(backend):
     root=Path(__file__).resolve().parents[1]/'instance'/'backups'
     root.mkdir(parents=True,exist_ok=True)
     path=root/('atlas-'+datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S')+'.json')
-    path.write_text(json_util.dumps({'database':backend.name,'collections':documents}),encoding='utf-8')
+    path.write_text(json_util.dumps({'database':backend.name,'collections':documents,'metadata':metadata}),encoding='utf-8')
     print('Private Atlas backup created:',str(path))
     print('Collection counts:',{name:len(rows) for name,rows in documents.items()})
 
