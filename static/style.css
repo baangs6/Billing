@@ -1483,3 +1483,14 @@ label span {
     background: #ffffff;
   }
 }
+
+/* Collapsible workspace navigation; native details supports keyboard controls. */
+.sidebar .nav-group{border:0;background:transparent;padding:0;margin:2px 0;box-shadow:none}
+.sidebar .nav-group summary{display:flex;align-items:center;justify-content:space-between;cursor:pointer;list-style:none;padding:11px 12px;border-radius:var(--radius-md);font-size:13px;font-weight:600;color:var(--ink-secondary)}
+.sidebar .nav-group summary::-webkit-details-marker{display:none}
+.sidebar .nav-group summary:hover{background:var(--bg-subtle)}
+.sidebar .nav-group summary:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
+.sidebar .nav-chevron{font-size:20px;line-height:16px;transition:transform .15s}
+.sidebar .nav-group[open] .nav-chevron{transform:rotate(90deg)}
+.sidebar .nav-group[open]>summary{color:var(--primary)}
+.sidebar .nav-group-links{display:flex;flex-direction:column;gap:3px;padding:2px 0 5px 12px}
