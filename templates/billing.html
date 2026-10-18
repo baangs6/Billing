@@ -111,7 +111,7 @@
           <div id="customer-results" class="customer-results" hidden></div>
         </div>
         {% if not proposal_source %}<label class="checkbox"><input type="checkbox" id="walk-in" {{ 'checked' if edit and edit.snapshot.get('walk_in') else '' }}> Walk-in sale · fully paid, no customer profile</label>{% endif %}
-        {% if not proposal_source %}<label id="walk-in-state-label" hidden>Walk-in place of supply (state)<input id="walk-in-state" name="walk_in_state" maxlength="100" value="{{ edit.snapshot.customer.data.state if edit and edit.snapshot.get('walk_in') else business.state }}" disabled></label>{% endif %}
+        {% if not proposal_source %}<label id="walk-in-state-label" hidden>Walk-in place of supply (state){% set selected_state=edit.snapshot.customer.data.state if edit and edit.snapshot.get('walk_in') else business.state %}<select id="walk-in-state" name="walk_in_state" disabled>{% include 'indian_state_options.html' %}</select></label>{% endif %}
         <small id="customer-info" style="font-size: 11px; color: var(--muted); margin-top: 2px; display: block;"></small>
       </div>
 

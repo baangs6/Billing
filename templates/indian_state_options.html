@@ -1,0 +1,5 @@
+{% set states = ['Andhra Pradesh','Arunachal Pradesh','Assam','Bihar','Chhattisgarh','Goa','Gujarat','Haryana','Himachal Pradesh','Jharkhand','Karnataka','Kerala','Madhya Pradesh','Maharashtra','Manipur','Meghalaya','Mizoram','Nagaland','Odisha','Punjab','Rajasthan','Sikkim','Tamil Nadu','Telangana','Tripura','Uttar Pradesh','Uttarakhand','West Bengal'] %}
+{% set territories = ['Andaman and Nicobar Islands','Chandigarh','Dadra and Nagar Haveli and Daman and Diu','Delhi','Jammu and Kashmir','Ladakh','Lakshadweep','Puducherry'] %}
+{% if selected_state and selected_state not in states + territories %}<option value="{{ selected_state }}" selected>{{ selected_state }} (saved value)</option>{% endif %}
+<optgroup label="States">{% for state in states %}<option value="{{ state }}" {{ 'selected' if selected_state == state else '' }}>{{ state }}</option>{% endfor %}</optgroup>
+<optgroup label="Union territories">{% for state in territories %}<option value="{{ state }}" {{ 'selected' if selected_state == state else '' }}>{{ state }}</option>{% endfor %}</optgroup>
