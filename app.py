@@ -48,7 +48,17 @@ def quantity(value, allow_zero=False):
 def rounded(value):
     return int(Decimal(value).quantize(Decimal('1'), rounding=ROUND_HALF_UP))
 
-def calculate(items, kind, interstate):
+def calculate(items, kind, interstate, common_discount=None, round_total=False):
+    if common_discount is not None:
+        bases=[rounded(Decimal(item['rate'])*item['quantity']/1000) if not item.get('is_charge') else 0 for item in items]
+        eligible=sum(bases)
+        if not 0<=common_discount<=eligible: raise ValueError('Common discount cannot exceed the item subtotal; additional charges are excluded.')
+        cumulative=allocated=0
+        for item,base in zip(items,bases):
+            cumulative+=base
+            share=rounded(Decimal(common_discount)*cumulative/eligible) if eligible else 0
+            item['discount']=share-allocated; allocated=share
+
     totals = dict(subtotal=0, discount=0, taxable=0, cgst=0, sgst=0, igst=0, total=0)
     for item in items:
         base = rounded(Decimal(item['rate']) * item['quantity'] / 1000)
@@ -64,6 +74,10 @@ def calculate(items, kind, interstate):
         item.update(taxable=taxable, tax=cgst+sgst+igst, total=taxable+cgst+sgst+igst)
         for key, val in dict(subtotal=base, discount=item['discount'], taxable=taxable, cgst=cgst, sgst=sgst, igst=igst, total=item['total']).items():
             totals[key] += val
+    if common_discount is not None: totals['common_discount']=common_discount
+    if common_discount is not None or round_total:
+        totals['round_off']=rounded(Decimal(totals['total'])/100)*100-totals['total'] if round_total else 0
+        totals['total']+=totals['round_off']
     return totals
 
 def invoice_filename(inv):
@@ -635,11 +649,11 @@ def create_app(database=None, backend=None):
                     if gst not in [Decimal(r) for r in business['gst_rates'].split(',')]: raise ValueError('Invalid GST rate.')
                     items.append(dict(product_id=p['id'] if p else None,is_charge=is_charge,name=name,quantity=1000 if is_charge else quantity(raw['quantity']),rate=money(raw['rate']),mrp=0 if is_charge else money(raw.get('mrp',raw['rate'])),gst=str(gst),hsn=str(raw.get('hsn','')),discount=0 if is_charge else money(raw.get('discount','0')),unit='CHARGE' if is_charge else pd.get('unit',raw.get('unit','PCS'))))
                 if not items or len(items)>200: raise ValueError('Add between 1 and 200 items.')
-                totals=calculate(items,kind,business['state'].strip().lower()!=customer['data']['state'].strip().lower())
+                totals=calculate(items,kind,business['state'].strip().lower()!=customer['data']['state'].strip().lower(),common_discount=money(request.form.get('common_discount') or '0') if 'common_discount' in request.form else None,round_total=request.form.get('round_total')=='1')
                 if totals['total']>9_000_000_000_000_000: raise ValueError('Invoice total exceeds the supported financial limit.')
                 received=money(request.form.get('received','0')) if not old else old['received']
                 if received>totals['total']: raise ValueError('Received amount cannot exceed invoice total. Resolve existing payments before reducing the invoice.')
-                snapshot=dict(business=business,customer=customer,terms=request.form.get('terms',''),notes=request.form.get('notes','').strip(),installation=request.form.get('installation',''),service=request.form.get('service',''))
+                snapshot=dict(round_total=request.form.get('round_total')=='1',business=business,customer=customer,terms=request.form.get('terms',''),notes=request.form.get('notes','').strip(),installation=request.form.get('installation',''),service=request.form.get('service',''))
                 for k in ('installation','service'):
                     if snapshot[k]: date.fromisoformat(snapshot[k])
                 values=dict(customer_id=customer['id'],date=day,type=kind,snapshot=snapshot,**totals)

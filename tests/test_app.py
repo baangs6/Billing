@@ -704,3 +704,43 @@ def test_charge_display_hides_quantity_and_prices(workspace):
     assert '9987' in row and '300.00' in row and 'CHARGE' not in row
     with pymupdf.open(stream=client.get('/invoices/1/pdf').data,filetype='pdf') as doc:
         assert 'HSN/SAC: 9987' in ''.join(page.get_text() for page in doc)
+
+
+def test_common_discount_allocation_and_rounding():
+    items=[dict(rate=10000,quantity=1000,discount=0,gst='18'),dict(rate=5000,quantity=1000,discount=0,gst='5'),dict(is_charge=True,rate=1000,quantity=1000,discount=0,gst='18')]
+    result=calculate(items,'GST',True,common_discount=1500,round_total=True)
+    assert [item['discount'] for item in items]==[1000,500,0]
+    assert result['taxable']==14500 and result['igst']==2025
+    assert result['total']==16500 and result['round_off']==-25
+    with pytest.raises(ValueError): calculate(items,'GST',True,common_discount=15001)
+
+
+def test_billing_common_discount_and_round_off(workspace):
+    import pymupdf
+    client,post,backend=workspace
+    data=payload();items=json.loads(data['items']);items[0]['rate']='100.33'
+    items.append(dict(is_charge=True,name='Transport',rate='10.25',gst='0'))
+    data.update(type='NON-GST',items=json.dumps(items),common_discount='20',round_total='1')
+    post('/billing',data)
+    inv=backend.database.invoices.find_one({'id':1})
+    assert inv['total']==19100 and inv['round_off']==9 and inv['common_discount']==2000
+    assert inv['snapshot']['round_total'] is True
+    assert values(backend,'inventory','quantity')==[8000]
+    post('/billing',data|dict(id='1',version='1',round_total='0'))
+    assert values(backend,'invoices','total')==[19091]
+    with pymupdf.open(stream=client.get('/invoices/1/pdf').data,filetype='pdf') as doc:
+        assert 'Discount' in ''.join(page.get_text() for page in doc)
+    html=client.get('/billing?edit=1').get_data(as_text=True)
+    assert 'id="common-discount"' in html and 'value="20.0"' in html
+    assert 'DISCOUNT' not in html.split('<thead>',1)[1].split('</thead>',1)[0]
+
+
+def test_common_discount_paise_and_rounding_boundaries():
+    items=[dict(rate=1,quantity=1000,discount=0,gst='0') for _ in range(3)]
+    totals=calculate(items,'NON-GST',False,common_discount=2)
+    assert sum(item['discount'] for item in items)==2
+    assert totals['total']==1 and totals['round_off']==0
+    for amount,expected,adjustment in [(149,100,-49),(150,200,50)]:
+        totals=calculate([dict(rate=amount,quantity=1000,discount=0,gst='0')],
+                         'NON-GST',False,common_discount=0,round_total=True)
+        assert (totals['total'],totals['round_off'])==(expected,adjustment)

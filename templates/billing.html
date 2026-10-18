@@ -162,7 +162,7 @@
         <span class="stitch-step-eyebrow">STEP 02</span>
         <h2 class="stitch-step-title">Invoice items</h2>
       </div>
-      <div class="billing-item-actions"><button type="button" id="additional-charge" class="secondary">＋ Additional charge</button><button type="button" id="manual-item" class="secondary" style="display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; font-size: 12.5px; font-weight: 500; border-radius: 8px;">
+      <div class="billing-item-actions"><button type="button" id="manual-item" class="secondary" style="display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; font-size: 12.5px; font-weight: 500; border-radius: 8px;">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 4v16m8-8H4"/></svg>
         Manual item / service
       </button></div>
@@ -202,7 +202,6 @@
             <th style="text-align: center; width: 90px;">QTY</th>
             <th style="text-align: right; width: 110px;">RATE ₹</th>
             <th style="text-align: right; width: 110px;">MRP ₹</th>
-            <th style="text-align: right; width: 110px;">DISCOUNT ₹</th>
             <th style="text-align: center; width: 100px;">GST %</th>
             <th style="text-align: right; width: 120px;">TOTAL</th>
             <th style="width: 44px; text-align: center;"></th>
@@ -269,6 +268,12 @@
     <!-- Right Column: Sticky Invoice Summary Card -->
     <div class="stitch-summary-card" data-purpose="invoice-summary-card">
       <h3 class="stitch-summary-header">Invoice summary</h3>
+      <div class="summary-options">
+        <details {{ 'open' if edit and edit.discount else '' }}><summary class="secondary">＋ Discount</summary><label for="common-discount">Common discount amount ₹</label><input id="common-discount" name="common_discount" type="number" min="0" step="0.01" value="{{ edit.discount/100 if edit else 0 }}"><small>Before GST, across items. Additional charges are excluded.</small></details>
+        <button type="button" id="additional-charge" class="secondary">＋ Additional charge</button>
+        <div id="charge-rows"></div>
+        <label class="checkbox"><input type="checkbox" id="round-total" name="round_total" value="1" {{ 'checked' if edit and edit.snapshot.get('round_total') else '' }}> Round total to nearest rupee</label>
+      </div>
       <div id="calculation"></div>
       <div class="stitch-summary-balance">
         <span>Balance due</span>

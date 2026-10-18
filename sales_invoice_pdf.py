@@ -57,7 +57,7 @@ def build_sales_invoice_pdf(inv):
         label=item['name']+('\n'+item.get('hsn','') if gst and item.get('hsn') else '')
         mrp=f"{item['mrp']/100:,.2f}"
         basis=item['mrp']*item['quantity']/1000
-        if basis>item['taxable'] and basis>0: mrp+=f"\n({(basis-item['taxable'])/basis*100:.2f}% OFF)"
+        if 'common_discount' not in inv and basis>item['taxable'] and basis>0: mrp+=f"\n({(basis-item['taxable'])/basis*100:.2f}% OFF)"
         values=[p(n,center),p(label),p(f"{item['quantity']/1000:g} {item['unit']}",center),p(mrp,right)]
         if gst: values.append(p(f"{item['gst']}%\n{money(item['tax'])}",right))
         values.append(p(money(item['total']),right)); rows.append(values)
@@ -65,10 +65,14 @@ def build_sales_invoice_pdf(inv):
         values=[p(''),p(item['name']+('\nHSN/SAC: '+item['hsn'] if item.get('hsn') else ''),right),p('-',center),p('-',right)]
         if gst: values.append(p(f"{item['gst']}%\n{money(item['tax'])}",right))
         values.append(p(money(item['total']),right)); rows.append(values)
+    if inv['discount']:
+        rows.append([p(''),p('Discount',right)]+[p('') for _ in headings[2:-1]]+[p(money(inv['discount']),right)])
     if gst:
         for label,key in [('Taxable amount','taxable'),('CGST','cgst'),('SGST','sgst'),('IGST','igst')]:
             if key!='taxable' and not inv[key]: continue
             rows.append([p(''),p(label,right)]+[p('') for _ in headings[2:-1]]+[p(money(inv[key]),right)])
+    if 'round_off' in inv:
+        rows.append([p(''),p('Round off',right)]+[p('') for _ in headings[2:-1]]+[p(money(inv['round_off']),right)])
     quantity=sum(item['quantity'] for item in products)/1000
     rows.append([p(''),p('TOTAL' if gst else 'Total amount',bold),p(f'{quantity:g}',center),p('')]+([p('')] if gst else [])+[p(money(inv['total']),bold)])
     story.append(table(rows,widths,repeat=1,commands=[('BACKGROUND',(0,0),(-1,0),colors.HexColor('#e2e2e2')),('BACKGROUND',(0,-1),(-1,-1),colors.HexColor('#e2e2e2'))]))
