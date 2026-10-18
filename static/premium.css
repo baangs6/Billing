@@ -2873,3 +2873,35 @@ dialog .panel-heading .secondary {
 .commerce-page td small{display:block;color:var(--muted);font-size:11px}
 .section-tabs{display:flex;flex-direction:row;flex-wrap:wrap;gap:8px;margin-bottom:20px}.section-tabs a{width:auto;flex:0 1 auto;padding:10px 14px;border:1px solid var(--line,#ddd);border-radius:10px;background:#fff;color:var(--ink);font-weight:500}.section-tabs a[aria-current=page]{background:#eff4ff;border-color:#bed2ff;color:#2563eb}.section-tabs a:focus-visible{outline:2px solid #2563eb;outline-offset:3px}
 @media(max-width:760px){.topbar{height:auto;min-height:64px;flex-wrap:wrap;gap:12px;padding:12px 16px}.topbar-breadcrumb{min-width:0}.topbar .global-search{order:3;flex:1 0 100%;width:100%;min-width:0;max-width:none}.topbar>div:last-child{max-width:100%;flex-wrap:wrap;gap:8px!important}}
+
+/* Shared mobile workspace shell. Keep wide records inside their table scroller. */
+.workspace-navigation{display:block}
+.mobile-menu-toggle{display:none}
+.workspace-navigation .sidebar[hidden]{display:none}
+@media screen and (max-width:768px){
+  .workspace-navigation{display:block;background:var(--surface,#fff);border-bottom:1px solid var(--line)}
+  .mobile-menu-toggle{display:flex;align-items:center;gap:12px;min-height:52px;padding:12px 16px;cursor:pointer;list-style:none;font-weight:600;width:100%;border:0;background:transparent;color:var(--ink);text-align:left}
+  .mobile-menu-toggle::-webkit-details-marker{display:none}
+  .workspace-navigation .sidebar{position:static;width:100%;max-height:65dvh;overflow-y:auto;padding:12px 16px}
+  .sidebar nav a,.sidebar .nav-group summary{min-height:44px}
+  main,.content,.panel,.split-layout>*,.dashboard-grid>*,.billing-bottom>*{min-width:0;max-width:100%}
+  .topbar{position:relative;height:auto;min-height:56px;flex-wrap:wrap;gap:12px;padding:12px 16px}
+  .topbar-breadcrumb{width:100%;overflow-wrap:anywhere}
+  .topbar .global-search{order:3;flex:1 0 100%;min-width:0;width:100%;max-width:none}
+  .topbar>div:last-child{margin-left:0!important;max-width:100%;flex-wrap:wrap;gap:8px!important}
+  .topbar .user-dropdown{max-width:calc(100vw - 32px)}
+  .content{padding:20px 12px}
+  .page-heading,.toolbar,.panel-heading,.filter-bar{flex-wrap:wrap;gap:12px}
+  .filter-bar>label{flex:1 1 100%;min-width:0}
+  .filter-bar input,.filter-bar select{width:100%}
+  .page-heading h1{font-size:26px;overflow-wrap:anywhere}
+  .form-grid,.form-grid.three,.form-grid.four{grid-template-columns:minmax(0,1fr)}
+  .form-grid>*,.toolbar>*{min-width:0;max-width:100%}
+  input,select,textarea{font-size:16px;max-width:100%}
+  button,.primary,.secondary{min-height:44px}
+  .table-wrap{max-width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .table-wrap table{min-width:640px}
+  dialog{max-width:calc(100vw - 24px);max-height:calc(100dvh - 24px);overflow:auto;padding:16px}
+  .section-tabs{flex-wrap:wrap}
+}
+@media print{.mobile-menu-toggle{display:none}}

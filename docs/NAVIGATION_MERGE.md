@@ -31,3 +31,10 @@ Results: 24 extended/Finance tests passed in 214.04 seconds. Browser checks conf
 The company sidebar now keeps Dashboard directly accessible and groups all existing permission-filtered links under Sales, Purchases, Catalog, Money and Administration. Native details/summary controls support keyboard expansion. Empty groups are omitted; the current section opens automatically, including the existing Finance and Reports aliases. No routes, permissions or business records are changed.
 
 Verification: two isolated template tests passed, checking all 18 links occur exactly once, only the current group opens, and a subscription-only user receives no empty or unauthorized groups. Browser checks confirmed expanding Money and opening Finance keeps that group expanded. Company and preserved sample services were restarted and their login pages returned HTTP 200. Screenshot capture was blocked by an in-app browser policy error associated with the stale preview tab; visual screenshot verification and the full suite were not completed. No push or deployment performed.
+
+
+## Phone layout
+
+At 768px and below, Workspace menu toggles the company sidebar with aria-expanded/aria-controls. Escape closes the menu and returns focus to its button. Crossing the breakpoint restores desktop navigation or collapses phone navigation. With JavaScript unavailable the full navigation remains accessible. Forms and filters stack, header controls wrap, touch controls are enlarged, dialogs fit the viewport, and wide tables scroll inside their panels. No routes, data, permissions or PDF layouts changed.
+
+Validation: both sidebar template tests and the Node navigation behavior check passed (initial phone/desktop state, button toggle, Escape/focus, breakpoint changes, pages without a sidebar). Desktop browser appearance checked. Full suite and physical phone/iOS checks not performed; exact phone viewport visual QA remains outstanding. Local company and preserved sample services refreshed. No GitHub push or Render deployment.
