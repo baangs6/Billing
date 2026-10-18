@@ -2,7 +2,7 @@
 
 Source: user master checklist, 18 October 2026. Status means verified behavior, not planned marketing claims. The linked reference video could not be retrieved (YouTube throttling); no video-only behavior is assumed.
 
-Baseline: c2333e7. Working branch: codex/complete-billing-features. Production writes, GitHub push and deployment are not authorized.
+Baseline: c2333e7. Working branch: codex/complete-billing-features. The user approved additive Atlas storage preparation and local service restart on 18 October 2026; both are complete. No existing financial records were changed. GitHub push and Render deployment remain unapproved.
 
 | Requirement | Status | Evidence / remaining work |
 |---|---|---|
@@ -158,7 +158,7 @@ Baseline: c2333e7. Working branch: codex/complete-billing-features. Production w
 
 ## Activation gate
 
-New purchasing/account schemas are not applied to the live database. New navigation is hidden until the additive setup is present. A dry-run/apply script is prepared; user approval is required before its live application. GitHub push and deployment have not occurred.
+The user approved activation on 18 October 2026. A fresh backup was restore-verified, additive schemas/indexes were applied, and existing records/counters compared equal to the backup. Local company/admin services were restarted on ports 5000/5001; new navigation is now enabled for permitted roles after login. GitHub push and Render deployment have not occurred.
 
 ## Scope honesty
 

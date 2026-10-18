@@ -1,6 +1,6 @@
 # Integrated development review
 
-This branch is a reviewed development increment, not a claim that the entire master checklist is complete. FEATURE_PROGRESS.md records every supplied feature separately, including unimplemented work. No GitHub push, deployment or live additive migration is authorized or performed.
+This branch is a reviewed development increment, not a claim that the entire master checklist is complete. FEATURE_PROGRESS.md records every supplied feature separately, including unimplemented work. User-approved additive Atlas preparation and local service restart were completed on 18 October 2026. GitHub push and Render deployment remain unapproved and were not performed.
 
 ## Preserved behavior
 
@@ -76,3 +76,9 @@ Not-implemented internal work is explicitly listed in FEATURE_PROGRESS.md: advan
 - A proposal PDF wording regression was identified by the full suite and fixed without changing its test. Targeted regression: 1 passed.
 - Expanded full-suite checkpoint: 129 passed. Final affected suites: 49 passed. Last unit/safety checks: 12 passed. Exact sequencing and limitations are recorded in VERIFICATION.md.
 - Browser QA is isolated from live data and covers purchase entry, saved totals, supplier ledger, accounts and report navigation. No physical printer/mobile device or live external integration has been exercised.
+
+## Approved local activation — 18 October 2026
+
+The user explicitly approved the additive Atlas setup and restart of the local company/admin apps. The services were stopped before backup. Private backup atlas-20261018-143358.json was restore-verified: 38 collection exports, 574 documents, SHA-256 c18cf572b1634dd1e2f0c12a0ab38340ca8fe111800df5125e42fea181e29567. The guarded preparation script succeeded. Every original document and every original counter compared equal afterward; only the new storage, indexes and counters were added.
+
+Local company port 5000 and admin port 5001 were restarted. Home and both login endpoints returned HTTP 200; the company served the new purchase assets. The main browser is at the company login; authenticated production workflow posting was not performed. Sign in with existing credentials to see the permitted new modules. The sample preview on 5002 remains separate and disposable. Render has not been updated; coordinate its deployment before using new financial workflows through different code versions against the same database.
