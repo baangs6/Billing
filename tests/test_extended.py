@@ -6,6 +6,48 @@ from test_app import mongo_backend,workspace,payload,values
 from test_proposals import proposal_data
 
 
+def test_merged_navigation_preserves_finance_reports_and_data(workspace):
+    from bson import json_util
+    from test_finance import entry
+    from test_trade import supplier,purchase
+    client,post,backend=workspace
+    post('/billing',payload()|dict(received='50'));post('/finance',entry())
+    supplier(post);post('/purchases',purchase(paid='100',method='Cash'))
+    names=('invoices','invoice_items','payments','finance_entries','inventory','stock_movements','purchases','trade_payments','bank_accounts')
+    snapshot=lambda:{name:json_util.dumps(list(backend.database[name].find({}).sort('_id',1)),sort_keys=True) for name in names}
+    before=snapshot()
+    for path in ['/finance','/accounts']:
+        response=client.get(path);assert response.status_code==200
+        sidebar=response.data.split(b'<nav>')[1].split(b'</nav>')[0]
+        assert b'href="/finance"' in sidebar and b'href="/accounts"' not in sidebar
+        assert b'aria-label="Finance views"' in response.data and b'Cash &amp; bank accounts' in response.data
+    response=client.get('/reports');assert b'value="Outstanding"' in response.data and b'value="Receivables"' in response.data
+    assert b'value="Inventory"' in response.data and b'value="Stock valuation"' in response.data
+    for kind in ['Purchases','Receivables','Payables','Sales credit notes','Purchase debit notes','HSN sales','GST summary','Stock valuation']:
+        response=client.get('/reports',query_string=dict(report=kind,**{'from':'','to':''}),follow_redirects=True)
+        assert response.status_code==200,kind
+        assert b'Export Excel' in response.data and b'name="report"' in response.data
+    for format in ['csv','xlsx','pdf']:
+        response=client.get('/reports',query_string=dict(report='Purchases',export=format),follow_redirects=True)
+        assert response.status_code==200 and (response.data.startswith(b'%PDF') if format=='pdf' else True)
+    assert b'Stock valuation report' in client.get('/inventory').data
+    assert snapshot()==before
+
+
+def test_merged_sections_keep_permission_boundaries(workspace):
+    client,post,backend=workspace
+    role=backend.database.roles.find_one({'name':'BILLING_STAFF','business_id':1})
+    backend.database.roles.update_one({'id':role['id']},{'$set':{'permissions':['report.view','finance.view']}})
+    backend.database.users.update_one({'id':1},{'$set':{'role_id':role['id']}})
+    assert client.get('/finance').status_code==200 and client.get('/accounts').status_code==200
+    page=client.get('/reports').data
+    assert b'value="Purchases"' not in page and b'value="Receivables"' not in page and b'value="Stock valuation"' not in page
+    assert client.get('/reports?report=Purchases',follow_redirects=True).status_code==403
+    assert client.get('/reports?report=Receivables',follow_redirects=True).status_code==403
+    assert post('/accounts',dict(action='create',name='Unauthorized',date='2026-10-18',kind='Cash',opening='10',submission=secrets.token_hex(32))).status_code==403
+    assert backend.database.bank_accounts.count_documents({})==0
+
+
 def test_challan_dispatch_conversion_and_cancel(workspace):
     client,post,backend=workspace
     post('/proposals/new',proposal_data(document_kind='CHALLAN'))

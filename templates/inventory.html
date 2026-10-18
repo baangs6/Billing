@@ -1,6 +1,7 @@
 {% extends 'base.html' %}
 
 {% block content %}
+{% if trade_ready and 'report.view' in policy.permissions and policy.features.reports %}<nav class="section-tabs" aria-label="Stock views"><a href="/inventory" aria-current="page">Stock &amp; adjustments</a><a href="/reports?report=Stock+valuation">Stock valuation report</a></nav>{% endif %}
 <article class="panel">
   <div class="panel-heading">
     <div>

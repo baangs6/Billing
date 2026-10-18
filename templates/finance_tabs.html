@@ -1,0 +1,4 @@
+<nav class="section-tabs" aria-label="Finance views">
+  <a href="{{ url_for('finance_page') }}" {{ 'aria-current=page' if request.endpoint=='finance_page' }}>Income, expenses &amp; transactions</a>
+  {% if trade_ready %}<a href="{{ url_for('accounts_page') }}" {{ 'aria-current=page' if request.endpoint=='accounts_page' }}>Cash &amp; bank accounts</a>{% endif %}
+</nav>

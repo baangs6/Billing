@@ -20,10 +20,12 @@ from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, Tabl
 from xml.sax.saxutils import escape
 from invoice_pdf import build_invoice_pdf
 from accounts import account_key
+from accounting_reports import REPORT_TYPES as ACCOUNTING_REPORT_TYPES
 from product_units import line_units,line_pricing,primary_quantity,product_options,rate_text
 from saas import access, quota, seed_roles, Platform, PERMISSIONS, FEATURES, local_month, stamp, subscription_state, month_add
 
 ROOT = Path(__file__).parent
+SALES_REPORT_TYPES=('Sales','Daily sales','Monthly sales','GST sales','Non-GST sales','Outstanding','Collections','Product sales','Inventory','Low stock','Stock movement')
 DEFAULTS = dict(name='Your business', address='', phone='', email='', gstin='', state='Tamil Nadu', pin='', bank='', upi='', terms='Thank you for your business. Goods once sold are subject to the agreed return policy.', signatory='', logo='', signature='', prefix='INV/{fy}/{seq}', gst_rates='0,5,12,18,28', negative_stock=False)
 
 def csv_safe(value):
@@ -198,6 +200,7 @@ def create_app(database=None, backend=None):
         nav=[('dashboard','Dashboard','◫'),('billing','Billing','＋'),('proposals','Proposals','▧'),('invoices','Invoices','▤'),('sales_returns_page','Sales returns','↶'),('service_reminders_page','Service reminders','◷'),('customers','Customers','♧'),('suppliers_page','Suppliers','♧'),('purchases_page','Purchases','▤'),('products','Products','◇'),('inventory','Inventory','▦'),('payments','Payments','↗'),('finance_page','Finance','₹'),('accounts_page','Cash & banks','▤'),('reports','Reports','▥'),('settings_page','Settings','⚙'),('company_users','Users','♙'),('company_roles','Roles','◇'),('subscription_page','Subscription','▤')]
         trade_ready=bool(backend.database.counters.find_one({'_id':'account_transfers'},{'_id':1})) if 'user' in session else False
         nav=[entry for entry in nav if entry[0] not in trade_permissions or trade_ready]
+        nav=[entry for entry in nav if entry[0]!='accounts_page']
         policy=g.get('access')
         if policy:
             nav=[entry for entry in nav if entry[0]=='subscription_page' or (policy['state']=='ACTIVE' and required_permission(entry[0]) in policy['permissions'] and (entry[0] not in ('inventory','reports','company_users','company_roles') or policy['features'].get({'inventory':'inventory','reports':'reports','company_users':'multiple_users','company_roles':'multiple_users'}[entry[0]],False)))]
@@ -209,7 +212,7 @@ def create_app(database=None, backend=None):
                 if start.month==4 and start.day==1 and request.args.get('to')==f'{start.year+1}-03-31': financial_year=start.year
             except ValueError: pass
         financial_years=sorted(set(range(current_fy-4,current_fy+1))|{financial_year},reverse=True)
-        return dict(trade_ready=trade_ready,bank_accounts=db().find('bank_accounts',{'archived':{'$ne':True}},projection={'id':1,'name':1}) if 'user' in session else [],financial_year=financial_year,financial_years=financial_years,business=settings() if 'user' in session else DEFAULTS, today=today(), csrf=session.get('csrf'), nav=nav, available_plans=plans, policy=policy,permissions=PERMISSIONS)
+        return dict(active_section={'accounts_page':'finance_page','accounting_reports':'reports'}.get(request.endpoint,request.endpoint),sales_report_types=SALES_REPORT_TYPES,accounting_report_types=ACCOUNTING_REPORT_TYPES,trade_ready=trade_ready,bank_accounts=db().find('bank_accounts',{'archived':{'$ne':True}},projection={'id':1,'name':1}) if 'user' in session else [],financial_year=financial_year,financial_years=financial_years,business=settings() if 'user' in session else DEFAULTS, today=today(), csrf=session.get('csrf'), nav=nav, available_plans=plans, policy=policy,permissions=PERMISSIONS)
 
     app.jinja_env.filters['inr'] = lambda x: f'₹{Decimal(x)/100:,.2f}'
     app.jinja_env.filters['qty'] = lambda x: f'{Decimal(x)/1000:g}'
@@ -958,6 +961,8 @@ def create_app(database=None, backend=None):
 
     @app.get('/reports')
     def reports():
+        if request.args.get('report') in ACCOUNTING_REPORT_TYPES:
+            return redirect(url_for('accounting_reports',**{key:value for key,value in request.args.items() if value}))
         kind=request.args.get('report','Sales'); invoices=[i for i in all_invoices() if i['status']=='FINAL']
         headers=['Invoice','Date','Customer','Total (INR)','Received (INR)','Balance (INR)']; rows=[]
         if kind in ('Inventory','Low stock'):

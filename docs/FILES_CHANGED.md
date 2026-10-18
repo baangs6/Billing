@@ -23,6 +23,7 @@ Local development branch: `codex/complete-billing-features`; baseline `c2333e7`.
 - `templates/customers.html`
 - `templates/finance.html`
 - `templates/home.html`
+- `templates/inventory.html`
 - `templates/invoice.html`
 - `templates/payments.html`
 - `templates/products.html`
@@ -46,6 +47,7 @@ Local development branch: `codex/complete-billing-features`; baseline `c2333e7`.
 - `docs/FEATURE_PROGRESS.md`
 - `docs/FILES_CHANGED.md`
 - `docs/IMPLEMENTATION_REVIEW.md`
+- `docs/NAVIGATION_MERGE.md`
 - `docs/REVIEW_LOG.md`
 - `docs/SPEC-product-stock-extensions.md`
 - `docs/VERIFICATION.md`
@@ -59,9 +61,11 @@ Local development branch: `codex/complete-billing-features`; baseline `c2333e7`.
 - `templates/accounting_reports.html`
 - `templates/accounts.html`
 - `templates/business_profile.html`
+- `templates/finance_tabs.html`
 - `templates/party_import.html`
 - `templates/purchase_detail.html`
 - `templates/purchases.html`
+- `templates/report_controls.html`
 - `templates/sales_returns.html`
 - `templates/supplier_ledger.html`
 - `templates/suppliers.html`
@@ -74,4 +78,4 @@ Local development branch: `codex/complete-billing-features`; baseline `c2333e7`.
 
 ## Persistent storage
 
-New optional tenant fields only, plus nine additive collections and a partial payment submission index. See IMPLEMENTATION_REVIEW.md for index, activation, backup and rollback constraints. No live application data migration, push or deployment has been performed.
+Nine additive collections and a partial payment submission index were previously activated with explicit approval. The navigation consolidation requires no data migration. See IMPLEMENTATION_REVIEW.md and NAVIGATION_MERGE.md for activation and verification details. Nothing has been pushed or deployed to Render.

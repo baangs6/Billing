@@ -1,0 +1,24 @@
+{% set labels={'Outstanding':'Outstanding invoices','Receivables':'Customer balances (including opening)','Inventory':'Stock quantities','Stock valuation':'Stock valuation (catalog cost)'} %}
+<form action="{{ url_for('reports') }}" class="filter-bar">
+  <label>Report type<select name="report" aria-label="Report type">
+    <optgroup label="Sales, collections &amp; stock">
+      {% for option in sales_report_types %}<option value="{{ option }}" {{ 'selected' if kind==option }}>{{ labels.get(option,option) }}</option>{% endfor %}
+    </optgroup>
+    {% if trade_ready %}<optgroup label="Purchases, balances &amp; accounting">
+      {% for option in accounting_report_types %}
+        {% set purchase_allowed=option not in ['Purchases','Payables','Purchase debit notes','GST summary'] or 'purchase.view' in policy.permissions %}
+        {% set sales_allowed=option not in ['Receivables','Sales credit notes','HSN sales','GST summary'] or 'invoice.view' in policy.permissions %}
+        {% set stock_allowed=option!='Stock valuation' or ('inventory.view' in policy.permissions and policy.features.inventory) %}
+        {% if purchase_allowed and sales_allowed and stock_allowed %}<option value="{{ option }}" {{ 'selected' if kind==option }}>{{ labels.get(option,option) }}</option>{% endif %}
+      {% endfor %}
+    </optgroup>{% endif %}
+  </select></label>
+  <label>From<input name="from" type="date" value="{{ start if start is defined else request.args.get('from','') }}"></label>
+  <label>To<input name="to" type="date" value="{{ end if end is defined else request.args.get('to','') }}"></label>
+  <button class="primary" type="submit">Run report</button>
+  {% if 'report.export' in policy.permissions %}
+    <button name="export" value="csv" class="secondary">Export CSV</button>
+    {% if request.endpoint=='accounting_reports' %}<button name="export" value="xlsx" class="secondary">Export Excel</button>{% endif %}
+    {% if policy.features.pdf %}<button name="export" value="pdf" class="secondary">Export PDF</button>{% endif %}
+  {% endif %}
+</form>

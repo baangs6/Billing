@@ -1,31 +1,8 @@
 {% extends 'base.html' %}
 
-{% block content %}{% if trade_ready %}<div class="toolbar"><a href="/accounting-reports" class="secondary">Purchases, GST, ledgers &amp; valuation</a></div>{% endif %}
+{% block content %}
 <article class="panel">
-  <form class="filter-bar">
-    <label>Report type
-      <select name="report">
-        {% for r in ['Sales','Daily sales','Monthly sales','GST sales','Non-GST sales','Outstanding','Collections','Product sales','Inventory','Low stock','Stock movement'] %}
-          <option {{ 'selected' if kind==r else '' }}>{{ r }}</option>
-        {% endfor %}
-      </select>
-    </label>
-    <label>From
-      <input name="from" type="date" value="{{ request.args.get('from','') }}">
-    </label>
-    <label>To
-      <input name="to" type="date" value="{{ request.args.get('to','') }}">
-    </label>
-    <button class="primary" type="submit">Run report</button>
-    <button name="export" value="csv" class="secondary" type="submit">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-      Export CSV
-    </button>
-    <button name="export" value="pdf" class="secondary" type="submit">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-      Export PDF
-    </button>
-  </form>
+  {% include 'report_controls.html' %}
 
   <div class="panel-heading">
     <h3>{{ kind }}</h3>

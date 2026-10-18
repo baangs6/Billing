@@ -6,6 +6,8 @@ from decimal import Decimal
 from collections import defaultdict
 from flask import abort,g,request,render_template,Response,send_file
 
+REPORT_TYPES=('Purchases','Receivables','Payables','Sales credit notes','Purchase debit notes','HSN sales','GST summary','Stock valuation')
+
 
 def install_accounting_reports(app,db,money,today,products,pdf):
     @app.get('/accounting-reports')
@@ -14,7 +16,7 @@ def install_accounting_reports(app,db,money,today,products,pdf):
         date.fromisoformat(start);date.fromisoformat(end)
         if start>end: raise ValueError('Start date must precede end date.')
         if not g.access['features'].get('reports'): abort(403)
-        kinds=('Purchases','Receivables','Payables','Sales credit notes','Purchase debit notes','HSN sales','GST summary','Stock valuation')
+        kinds=REPORT_TYPES
         if kind not in kinds: raise ValueError('Choose a report.')
         if kind in ('Purchases','Payables','Purchase debit notes','GST summary') and 'purchase.view' not in g.access['permissions']: abort(403)
         if kind in ('Receivables','Sales credit notes','HSN sales','GST summary') and 'invoice.view' not in g.access['permissions']: abort(403)
@@ -84,5 +86,5 @@ def install_accounting_reports(app,db,money,today,products,pdf):
             if format!='csv': raise ValueError('Choose CSV, XLSX or PDF.')
             output=io.StringIO();writer=csv.writer(output);writer.writerow(headers);writer.writerows([["'"+v if isinstance(v,str) and v.startswith(('=','+','-','@')) else v for v in row] for row in rows])
             return Response('\ufeff'+output.getvalue(),mimetype='text/csv',headers={'Content-Disposition':'attachment; filename=accounting-report.csv'})
-        return render_template('accounting_reports.html',title='Accounting reports',kind=kind,kinds=kinds,start=start,end=end,headers=headers,rows=rows)
+        return render_template('accounting_reports.html',title='Reports',kind=kind,kinds=kinds,start=start,end=end,headers=headers,rows=rows)
     return {'accounting_reports':('report.view',None)}
