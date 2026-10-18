@@ -14,7 +14,7 @@
       <label class="full">Customer name
         <input name="name" required maxlength="150" autocomplete="organization">
       </label>
-      {% for field, label in [('phone','Phone'),('email','Email'),('address','Address'),('state','State'),('pin','PIN code'),('gstin','GSTIN'),('notes','Notes')] %}
+      {% for field, label in [('phone','Phone'),('email','Email'),('address','Address'),('state','State'),('pin','PIN code'),('gstin','GSTIN'),('shipping_address','Shipping address'),('pan','PAN'),('credit_days','Credit days'),('notes','Notes')] %}
         <label>{{ label }}
           <input name="{{ field }}" type="{{ 'email' if field == 'email' else 'text' }}" maxlength="150">
         </label>
@@ -72,6 +72,8 @@
 {% endif %}
 <script defer src="{{ url_for('static', filename='billing-products.js') }}"></script>
 
+{% if trade_ready and 'finance.manage' in policy.permissions %}{% include 'billing_bank_popup.html' %}{% endif %}
+<script defer src="{{ url_for('static',filename='billing-options.js') }}"></script>
 <form method="post" id="billing-form" class="stitch-billing-wrapper">
   <input type="hidden" name="csrf" value="{{ csrf }}">
   <input type="hidden" name="id" value="{{ edit.id if edit and not duplicate else '' }}">
@@ -105,9 +107,11 @@
         <label class="stitch-label" for="customer-search">Bill to</label>
         <div style="position: relative;">
           <input type="search" id="customer-search" class="stitch-input" autocomplete="off" placeholder="Search name, phone or email…" value="{{ (customers|selectattr('id','equalto',edit.customer_id)|map(attribute='name')|first) if edit else '' }}" aria-controls="customer-results" style="width: 100%;">
-          <input type="hidden" id="customer" name="customer" value="{{ edit.customer_id if edit else '' }}">
+          <input type="hidden" id="customer" name="customer" value="{{ 'walk-in' if edit and edit.snapshot.get('walk_in') else edit.customer_id if edit else '' }}">
           <div id="customer-results" class="customer-results" hidden></div>
         </div>
+        {% if not proposal_source %}<label class="checkbox"><input type="checkbox" id="walk-in" {{ 'checked' if edit and edit.snapshot.get('walk_in') else '' }}> Walk-in sale · fully paid, no customer profile</label>{% endif %}
+        {% if not proposal_source %}<label id="walk-in-state-label" hidden>Walk-in place of supply (state)<input id="walk-in-state" name="walk_in_state" maxlength="100" value="{{ edit.snapshot.customer.data.state if edit and edit.snapshot.get('walk_in') else business.state }}" disabled></label>{% endif %}
         <small id="customer-info" style="font-size: 11px; color: var(--muted); margin-top: 2px; display: block;"></small>
       </div>
 
@@ -117,6 +121,7 @@
         <input type="date" id="invoice-date" name="date" class="stitch-input" value="{{ edit.date if edit and not duplicate else today }}" required>
       </div>
 
+      <div class="stitch-field"><label class="stitch-label" for="due-date">Due date</label><input type="date" id="due-date" name="due_date" class="stitch-input" value="{{ edit.snapshot.get('due_date','') if edit and not duplicate else '' }}"><small>Calculated from customer credit days; you can change it.</small></div>
       <!-- Invoice type -->
       <div class="stitch-field">
         <label class="stitch-label" for="invoice-type">Invoice type</label>
@@ -250,7 +255,8 @@
 
         <!-- Notes -->
         <div class="stitch-field">
-          {% include 'account_picker.html' %}<label class="stitch-label" for="invoice-notes">
+          {% include 'account_picker.html' %}
+          {% if trade_ready %}<label>Bank / UPI details on this invoice<select name="print_account" id="print-account"><option value="">{{ 'Keep saved invoice details' if edit and not duplicate else 'Business default details' }}</option>{% for account in bank_accounts if account.kind=='Bank' %}<option value="{{ account.id }}">{{ account.name }}</option>{% endfor %}</select></label>{% if 'finance.manage' in policy.permissions %}<button type="button" class="secondary" id="open-bank-popup">＋ Add bank account</button>{% endif %}{% endif %}<label class="stitch-label" for="invoice-notes">
             <span>Notes</span>
             <span class="stitch-label-optional">Optional · shown on the invoice</span>
           </label>
@@ -268,13 +274,20 @@
     <!-- Right Column: Sticky Invoice Summary Card -->
     <div class="stitch-summary-card" data-purpose="invoice-summary-card">
       <h3 class="stitch-summary-header">Invoice summary</h3>
-      {% if trade_ready %}<label>PO number<input name="po_number" value="{{ edit.snapshot.get('po_number','') if edit else '' }}"></label><label>Vehicle number<input name="vehicle_number" value="{{ edit.snapshot.get('vehicle_number','') if edit else '' }}"></label>{% endif %}<div class="summary-options">
+      {% if trade_ready %}<label>PO number<input name="po_number" value="{{ edit.snapshot.get('po_number','') if edit else '' }}"></label><label>E-way bill number<input name="eway_bill" inputmode="numeric" pattern="[0-9]{12}" maxlength="12" value="{{ edit.snapshot.get('eway_bill','') if edit else '' }}"><small>Record an existing number; this does not generate an e-way bill.</small></label><label>Vehicle number<input name="vehicle_number" value="{{ edit.snapshot.get('vehicle_number','') if edit else '' }}"></label>{% endif %}<div class="summary-options">
         <details {{ 'open' if edit and edit.discount else '' }}><summary class="secondary">＋ Discount</summary><label for="common-discount">Common discount amount ₹</label><input id="common-discount" name="common_discount" type="number" min="0" step="0.01" value="{{ edit.discount/100 if edit else 0 }}"><small>Before GST, across items. Additional charges are excluded.</small></details>
         <button type="button" id="additional-charge" class="secondary">＋ Additional charge</button>
         <div id="charge-rows"></div>
         <label class="checkbox"><input type="checkbox" id="round-total" name="round_total" value="1" {{ 'checked' if edit and edit.snapshot.get('round_total') else '' }}> Round total to nearest rupee</label>
+        <label>Manual round off ₹<input id="manual-round-off" name="manual_round_off" type="number" min="-1" max="1" step="0.01" value="{{ edit.snapshot.get('manual_round_off',0)/100 if edit else 0 }}"><small>From −₹1 to +₹1. Turn off automatic rounding to use this.</small></label>
       </div>
       <div id="calculation"></div>
+      {% set printing=(edit.snapshot.business if edit else business).get('extended',{}) %}
+      <details class="billing-print-options"><summary class="secondary">Printing options</summary><input type="hidden" name="print_options" value="1">
+        <label>Payment footer<select name="payment_details">{% for key,label in [('BOTH','Bank and UPI'),('BANK','Bank only'),('UPI','UPI only')] %}<option value="{{ key }}" {{ 'selected' if printing.get('payment_details','BOTH')==key else '' }}>{{ label }}</option>{% endfor %}</select></label>
+        {% for key,label in [('show_time','Print creation time'),('show_qr','Print UPI QR when a balance is due'),('show_previous_balance','Print previous customer balance')] %}<label class="checkbox"><input type="checkbox" name="{{ key }}" value="1" {{ 'checked' if printing.get(key) else '' }}>{{ label }}</label>{% endfor %}
+        <label>Thermal layout<select name="thermal_layout">{% for key in ['COMPACT','SIMPLE','CLASSIC','ADVANCED'] %}<option value="{{ key }}" {{ 'selected' if printing.get('thermal_layout','CLASSIC')==key else '' }}>{{ key|title }}</option>{% endfor %}</select><small>Used when your PDF format is 2-inch or 3-inch thermal in printing settings.</small></label>
+      </details>
       <div class="stitch-summary-balance">
         <span>Balance due</span>
         <strong id="balance">₹0.00</strong>

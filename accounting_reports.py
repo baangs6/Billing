@@ -46,7 +46,9 @@ def install_accounting_reports(app,db,money,today,products,pdf):
                 if 'opening_effect' in payment: paid[ident]-=payment['opening_effect']
                 elif customer and payment['kind']=='CUSTOMER_REFUND': paid[ident]-=payment['amount']
                 elif not customer and payment['kind'] in ('PAYMENT_OUT','SUPPLIER_REFUND'): paid[ident]+=payment['amount']*(-1 if payment['kind']=='SUPPLIER_REFUND' else 1)
-            for party_row in db().find(party):
+            parties=db().find(party)
+            if customer and (gross[0] or credit[0] or paid[0]): parties.append(dict(id=0,name='Walk-in sales',data={}))
+            for party_row in parties:
                 ident=party_row['id'];opening=party_row['data'].get('opening_balance',0)
                 rows.append([party_row['name'],*[f'{Decimal(v)/100:.2f}' for v in (opening,gross[ident],credit[ident],paid[ident],opening+gross[ident]-credit[ident]-paid[ident])]])
         elif kind=='HSN sales':

@@ -45,12 +45,16 @@ def install_accounts(app,db,owned,audit,money,today):
             action=request.form.get('action');token=request.form.get('submission','');day=date.fromisoformat(request.form.get('date','')).isoformat()
             if len(token)!=64: raise ValueError('Refresh before saving.')
             if action=='create':
-                if db().one('bank_accounts',{'submission':token}): return redirect(url_for('accounts_page'))
+                existing=db().one('bank_accounts',{'submission':token})
+                if existing:
+                    if request.accept_mimetypes.best=='application/json': return {'account':dict(id=existing['id'],name=existing['name'])}
+                    return redirect(url_for('accounts_page'))
                 name=request.form.get('name','').strip();kind=request.form.get('kind')
                 if not name or kind not in ('Cash','Bank','Other'): raise ValueError('Enter an account name and type.')
-                details={key:request.form.get(key,'').strip() for key in ('bank','account_number','ifsc','upi')}
+                details={key:request.form.get(key,'').strip() for key in ('bank','account_number','ifsc','upi','holder')}
                 ident=db().insert('bank_accounts',dict(name=name,kind=kind,date=day,opening=money(request.form.get('opening') or '0'),data=details,archived=False,submission=token))
                 audit('create','bank_account',ident)
+                if request.accept_mimetypes.best=='application/json': return {'account':dict(id=ident,name=name)},201
             elif action=='transfer':
                 if db().one('account_transfers',{'submission':token}): return redirect(url_for('accounts_page'))
                 source=account_key(db(),request.form.get('from_account',''),'Cash',day);target=account_key(db(),request.form.get('to_account',''),'Bank',day)

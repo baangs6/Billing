@@ -19,6 +19,7 @@ from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image
 from xml.sax.saxutils import escape
 from invoice_pdf import build_invoice_pdf
+from billing_options import due_date, manual_rounding, customer_balances
 from accounts import account_key
 from accounting_reports import REPORT_TYPES as ACCOUNTING_REPORT_TYPES
 from product_units import line_units,line_pricing,primary_quantity,product_options,rate_text
@@ -55,7 +56,9 @@ def quantity(value, allow_zero=False):
 def rounded(value):
     return int(Decimal(value).quantize(Decimal('1'), rounding=ROUND_HALF_UP))
 
-def calculate(items, kind, interstate, common_discount=None, round_total=False):
+def calculate(items, kind, interstate, common_discount=None, round_total=False, manual_round_off=0):
+    if round_total and manual_round_off: raise ValueError("Choose automatic or manual round off, not both.")
+    if not isinstance(manual_round_off,int) or abs(manual_round_off)>100: raise ValueError("Invalid manual round off.")
     if common_discount is not None:
         bases=[item.get('base_amount',rounded(Decimal(item['rate'])*item['quantity']/1000)) if not item.get('is_charge') else 0 for item in items]
         eligible=sum(bases)
@@ -86,9 +89,10 @@ def calculate(items, kind, interstate, common_discount=None, round_total=False):
         for key, val in dict(subtotal=base, discount=item['discount'], taxable=taxable, cgst=cgst, sgst=sgst, igst=igst, total=item['total']).items():
             totals[key] += val
     if common_discount is not None: totals['common_discount']=common_discount
-    if common_discount is not None or round_total:
-        totals['round_off']=rounded(Decimal(totals['total'])/100)*100-totals['total'] if round_total else 0
+    if common_discount is not None or round_total or manual_round_off:
+        totals['round_off']=rounded(Decimal(totals['total'])/100)*100-totals['total'] if round_total else manual_round_off
         totals['total']+=totals['round_off']
+    if totals['total']<0: raise ValueError('Round off cannot make the invoice total negative.')
     return totals
 
 def invoice_filename(inv):
@@ -212,7 +216,7 @@ def create_app(database=None, backend=None):
                 if start.month==4 and start.day==1 and request.args.get('to')==f'{start.year+1}-03-31': financial_year=start.year
             except ValueError: pass
         financial_years=sorted(set(range(current_fy-4,current_fy+1))|{financial_year},reverse=True)
-        return dict(active_section={'accounts_page':'finance_page','accounting_reports':'reports'}.get(request.endpoint,request.endpoint),sales_report_types=SALES_REPORT_TYPES,accounting_report_types=ACCOUNTING_REPORT_TYPES,trade_ready=trade_ready,bank_accounts=db().find('bank_accounts',{'archived':{'$ne':True}},projection={'id':1,'name':1}) if 'user' in session else [],financial_year=financial_year,financial_years=financial_years,business=settings() if 'user' in session else DEFAULTS, today=today(), csrf=session.get('csrf'), nav=nav, available_plans=plans, policy=policy,permissions=PERMISSIONS)
+        return dict(active_section={'accounts_page':'finance_page','accounting_reports':'reports'}.get(request.endpoint,request.endpoint),sales_report_types=SALES_REPORT_TYPES,accounting_report_types=ACCOUNTING_REPORT_TYPES,trade_ready=trade_ready,bank_accounts=db().find('bank_accounts',{'archived':{'$ne':True}},projection={'id':1,'name':1,'kind':1}) if 'user' in session else [],financial_year=financial_year,financial_years=financial_years,business=settings() if 'user' in session else DEFAULTS, today=today(), csrf=session.get('csrf'), nav=nav, available_plans=plans, policy=policy,permissions=PERMISSIONS)
 
     app.jinja_env.filters['inr'] = lambda x: f'₹{Decimal(x)/100:,.2f}'
     app.jinja_env.filters['qty'] = lambda x: f'{Decimal(x)/1000:g}'
@@ -221,7 +225,7 @@ def create_app(database=None, backend=None):
     @app.errorhandler(ValueError)
     def invalid(error):
         db().rollback();
-        if request.endpoint=='billing_product': return {'error':str(error)},400
+        if request.endpoint in ('billing_product','billing_customer') or (request.endpoint=='accounts_page' and request.accept_mimetypes.best=='application/json'): return {'error':str(error)},400
         flash(str(error),'error')
         return redirect(request.referrer if request.referrer and request.referrer.startswith(request.host_url) else url_for('dashboard'))
 
@@ -374,8 +378,9 @@ def create_app(database=None, backend=None):
     @app.post('/billing/customer')
     def billing_customer():
         name=request.form.get('name','').strip()
-        if not name: return {'error':'Customer name is required.'},400
-        data={k:request.form.get(k,'').strip() for k in ('phone','email','address','gstin','state','pin','notes')}
+        if not name or len(name)>150: return {'error':'Customer name is required and must be at most 150 characters.'},400
+        from party_data import customer_fields
+        data=customer_fields(request.form,{},money)
         ident=db().insert('customers',dict(name=name,data=data,archived=0))
         audit('save','customer',ident)
         return {'customer':dict(id=ident,name=name,data=data)},201
@@ -685,9 +690,16 @@ def create_app(database=None, backend=None):
                 if old and old.get('has_credit_notes'): raise ValueError('Invoices with credit notes cannot be edited. Preserve the original document.')
                 if old and old['status']!='FINAL': raise ValueError('Cancelled invoices cannot be edited.')
                 if old and str(old['version'])!=request.form.get('version'): raise ValueError('Invoice changed in another window. Reload before editing.')
-                customer=owned('customers',request.form['customer'])
-                if customer['archived']: raise ValueError('Choose an active customer.')
-                customer['data']=dict(customer['data']); business=settings()
+                business=settings()
+                walk_in=request.form.get('customer')=='walk-in'
+                if walk_in:
+                    if source: raise ValueError('Keep the customer linked to the source document.')
+                    # Zero is reserved for anonymous sales; customer IDs start at one.
+                    customer=dict(id=0,name='Walk-in customer',archived=0,data=dict(address='',phone='',email='',gstin='',state=request.form.get('walk_in_state','').strip() or business['state'],pin=''))
+                else:
+                    customer=owned('customers',request.form.get('customer',''))
+                    if customer['archived']: raise ValueError('Choose an active customer.')
+                customer['data']=dict(customer['data'])
                 kind=request.form.get('type','NON-GST')
                 if kind not in ('GST','NON-GST'): raise ValueError('Invalid invoice type.')
                 day=request.form.get('date'); date.fromisoformat(day)
@@ -719,17 +731,35 @@ def create_app(database=None, backend=None):
                             if line.get('product_id'): totals[line['product_id']]=totals.get(line['product_id'],0)+primary_quantity(line)
                         return totals
                     if stock_totals(items)!=stock_totals(source['items']): raise ValueError('Dispatched product quantities must match the delivery challan.')
-                totals=calculate(items,kind,business['state'].strip().lower()!=customer['data']['state'].strip().lower(),common_discount=money(request.form.get('common_discount') or '0') if 'common_discount' in request.form else None,round_total=request.form.get('round_total')=='1')
+                totals=calculate(items,kind,business['state'].strip().lower()!=customer['data']['state'].strip().lower(),common_discount=money(request.form.get('common_discount') or '0') if 'common_discount' in request.form else None,round_total=request.form.get('round_total')=='1',manual_round_off=manual_rounding(request.form.get('manual_round_off')))
                 if totals['total']>9_000_000_000_000_000: raise ValueError('Invoice total exceeds the supported financial limit.')
                 received=money(request.form.get('received','0')) if not old else old['received']
                 if received>totals['total']: raise ValueError('Received amount cannot exceed invoice total. Resolve existing payments before reducing the invoice.')
+                if walk_in and received!=totals['total']: raise ValueError('Walk-in sales must be fully paid. Select a customer for credit sales.')
+                previous_balance=customer_balances(db(),old['id'] if old else None).get(customer['id'],0) if not walk_in else 0
                 credit_limit=customer['data'].get('credit_limit',0)
                 if credit_limit:
-                    others=db().find('invoices',{'customer_id':customer['id'],'status':'FINAL','deleted':{'$ne':True},'id':{'$ne':old['id'] if old else None}})
-                    ids=[document['id'] for document in others]
-                    outstanding=customer['data'].get('opening_balance',0)+sum(p.get('opening_effect',0) for p in db().find('trade_payments',{'customer_id':customer['id']}))+sum(document['total'] for document in others)-sum(payment['amount'] for payment in db().find('payments',{'invoice_id':{'$in':ids}}))-sum(note['total'] for note in db().find('sales_returns',{'invoice_id':{'$in':ids}}))+sum(payment['amount'] for payment in db().find('trade_payments',{'invoice_id':{'$in':ids},'kind':'CUSTOMER_REFUND'}))
-                    if outstanding+totals['total']-received>credit_limit: raise ValueError('This invoice would exceed the customer credit limit. Increase the limit or record a larger payment.')
-                snapshot=dict(po_number=request.form.get('po_number','').strip(),vehicle_number=request.form.get('vehicle_number','').strip(),due_date=(date.fromisoformat(day)+timedelta(days=customer['data'].get('credit_days',0))).isoformat(),round_total=request.form.get('round_total')=='1',business=business,customer=customer,terms=request.form.get('terms',''),notes=request.form.get('notes','').strip(),installation=request.form.get('installation',''),service=request.form.get('service',''))
+                    if previous_balance+totals['total']-received>credit_limit: raise ValueError('This invoice would exceed the customer credit limit. Increase the limit or record a larger payment.')
+                snapshot=dict(po_number=request.form.get('po_number','').strip(),vehicle_number=request.form.get('vehicle_number','').strip(),due_date=due_date(day,request.form.get('due_date',''),0 if walk_in else customer['data'].get('credit_days',0)),walk_in=walk_in,previous_balance=previous_balance,manual_round_off=manual_rounding(request.form.get('manual_round_off')),eway_bill=request.form.get('eway_bill','').strip(),round_total=request.form.get('round_total')=='1',business=business,customer=customer,terms=request.form.get('terms',''),notes=request.form.get('notes','').strip(),installation=request.form.get('installation',''),service=request.form.get('service',''))
+                if snapshot['eway_bill'] and (len(snapshot['eway_bill'])!=12 or not snapshot['eway_bill'].isascii() or not snapshot['eway_bill'].isdigit()): raise ValueError('E-way bill number must be 12 digits.')
+                print_account=request.form.get('print_account','')
+                preferences=dict((old['snapshot']['business'] if old else business).get('extended',{}))
+                for key,allowed in [('payment_details',('BANK','UPI','BOTH')),('thermal_layout',('COMPACT','SIMPLE','CLASSIC','ADVANCED'))]:
+                    if key in request.form:
+                        if request.form[key] not in allowed: raise ValueError('Choose valid invoice printing options.')
+                        preferences[key]=request.form[key]
+                for key in ('show_time','show_qr','show_previous_balance'):
+                    if 'print_options' in request.form: preferences[key]=request.form.get(key)=='1'
+                business=dict(business,extended=preferences);snapshot['business']=business
+                if old and not print_account:
+                    saved_business=old['snapshot']['business']
+                    business=dict(business,bank=saved_business.get('bank',''),upi=saved_business.get('upi',''));snapshot['business']=business
+                if print_account:
+                    account=owned('bank_accounts',print_account)
+                    if account.get('archived') or account.get('kind')!='Bank': raise ValueError('Choose an active bank account for printing.')
+                    details=account['data']
+                    business=dict(business,bank='\n'.join(filter(None,[details.get('bank') or account['name'],('Holder: '+details['holder']) if details.get('holder') else '',('Account: '+details['account_number']) if details.get('account_number') else '',('IFSC: '+details['ifsc']) if details.get('ifsc') else ''])),upi=details.get('upi',''))
+                    snapshot['business']=business;snapshot['print_account']=account['id']
                 for k in ('installation','service'):
                     if snapshot[k]: date.fromisoformat(snapshot[k])
                 values=dict(customer_id=customer['id'],date=day,type=kind,snapshot=snapshot,**totals)
@@ -770,6 +800,8 @@ def create_app(database=None, backend=None):
             if source['status']=='DECLINED' or (source.get('document_kind')!='CHALLAN' and source['valid_until']<today()): raise ValueError('This proposal is declined or expired. Revise it before conversion.')
             edit=source; duplicate=True
         customers=db().find('customers',{'archived':0},sort=[('name',1)])
+        balances=customer_balances(db(),edit['id'] if edit and not duplicate else None)
+        for customer in customers: customer['previous_balance']=balances.get(customer['id'],0)
         return render_template('billing.html',title='Create invoice' if not edit or duplicate else 'Edit invoice',products=product_rows(),customers=customers,edit=edit,duplicate=duplicate,submission=secrets.token_hex(32),proposal_source=source,categories=db().find('categories',sort=[('name',1)]))
 
     @app.get('/invoices')
@@ -957,6 +989,7 @@ def create_app(database=None, backend=None):
     @app.get('/invoices/<int:ident>/pdf')
     def invoice_pdf(ident):
         inv=invoice(ident)
+        if request.args.get('copy')=='duplicate': inv['copy_label']='DUPLICATE COPY'
         return send_file(io.BytesIO(build_invoice_pdf(inv)),mimetype='application/pdf',as_attachment=not request.args.get('preview'),download_name=invoice_filename(inv))
 
     @app.get('/reports')

@@ -2905,3 +2905,15 @@ dialog .panel-heading .secondary {
   .section-tabs{flex-wrap:wrap}
 }
 @media print{.mobile-menu-toggle{display:none}}
+
+.billing-print-options{margin:12px 0;border-top:1px solid var(--line);padding-top:12px}
+.billing-print-options[open]{display:grid;gap:12px}
+.billing-print-options summary{cursor:pointer;list-style:none}
+.billing-print-options .checkbox{display:flex;align-items:center;gap:8px}
+.billing-print-options input[type=checkbox]{width:auto}
+#customer-info{line-height:1.7;margin-top:8px}
+
+.page-heading{flex-wrap:wrap}
+.page-heading>div:first-child:not(.toolbar){min-width:min(240px,100%)}
+.page-heading>.toolbar{flex-wrap:wrap;justify-content:flex-end;margin-left:auto}
+#walk-in-state-label[hidden]{display:none}

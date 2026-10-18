@@ -13,7 +13,7 @@ function convertedUnitRate(paise,factor='1'){
 }
 if(dataElement){
  const data=JSON.parse(dataElement.textContent),rows=document.querySelector('#item-rows'),form=document.querySelector('#billing-form');
- const common=document.querySelector('#common-discount'),round=document.querySelector('#round-total'),charges=document.querySelector('#charge-rows');
+ const common=document.querySelector('#common-discount'),round=document.querySelector('#round-total'),manualRound=document.querySelector('#manual-round-off'),walkIn=document.querySelector('#walk-in'),charges=document.querySelector('#charge-rows');
  let items=data.items.map(i=>({...i,original_unit_choice:i.unit_choice,quantity:i.quantity/1000,rate:i.unit_rate_decimal??i.rate/100,mrp:i.mrp/100,discount:i.discount/100}));
  const fmt=n=>new Intl.NumberFormat('en-IN',{style:'currency',currency:'INR'}).format(n/100);
  // Preview arithmetic; server Decimal calculations are authoritative.
@@ -29,7 +29,7 @@ if(dataElement){
  }
  function calculate(){
   let subtotal=0,discount=0,cgst=0,sgst=0,igst=0,chargeAmount=0;
-  const customer=data.customers.find(c=>c.id===Number(document.querySelector('#customer').value));
+  const customer=data.customers.find(c=>c.id===Number(document.querySelector('#customer').value))||(walkIn?.checked?{data:{state:document.querySelector('#walk-in-state')?.value||data.business.state}}:null);
   const interstate=customer&&customer.data.state.trim().toLowerCase()!==data.business.state.trim().toLowerCase(),gst=document.querySelector('#invoice-type').value==='GST';
   document.querySelector(`.billing-table th:nth-child(${common?5:6})`).hidden=!gst;
   const gross=items.map(i=>Math.round((i.unit_rate_decimal!==undefined?Number(i.rate)*100:paise(i.rate))*Number(i.quantity)+1e-7));
@@ -48,16 +48,19 @@ if(dataElement){
    subtotal+=base;discount+=disc;cgst+=half;sgst+=i.preview_sgst;igst+=integrated;if(i.is_charge)chargeAmount+=base;
    row.querySelector('.row-total').textContent=fmt(taxable+integrated+half+i.preview_sgst);
   });
-  const raw=subtotal-discount+cgst+sgst+igst,adjustment=round?.checked?Math.round(raw/100)*100-raw:0,total=raw+adjustment;
+  if(manualRound){manualRound.disabled=Boolean(round?.checked);if(round?.checked)manualRound.value='0';}
+  const raw=subtotal-discount+cgst+sgst+igst,adjustment=round?.checked?Math.round(raw/100)*100-raw:paise(manualRound?.value||0),total=raw+adjustment;
+  if(walkIn?.checked&&!form.elements.id.value){document.querySelector('#received').value=(total/100).toFixed(2);document.querySelector('#received').readOnly=true;}else if(!form.elements.id.value){document.querySelector('#received').readOnly=false;}
   const values=[['Subtotal',subtotal-chargeAmount],...(common?[['Additional charges',chargeAmount]]:[]),['Discount',discount],[gst?'Taxable amount':'Total amount',subtotal-discount],...(gst?(interstate?[['IGST',igst]]:[['CGST',cgst],['SGST',sgst]]):[]),...(round?[['Round off',adjustment]]:[]),['Grand total',total]];
   const container=document.querySelector('#calculation');container.replaceChildren();
   values.forEach(([label,value])=>{const div=document.createElement('div');div.className='summary-line'+(label==='Grand total'?' grand':'');const a=document.createElement('span'),b=document.createElement('strong');a.textContent=label;b.textContent=fmt(value);div.append(a,b);container.append(div)});
   document.querySelector('#balance').textContent=fmt(total-paise(document.querySelector('#received').value));
-  document.querySelector('#customer-info').textContent=customer?`${customer.data.address} · ${customer.data.state} · ${customer.data.phone}`:'';
+
  }
- form.addEventListener('input',e=>{const index=e.target.closest('[data-index]')?.dataset.index,field=e.target.dataset.field;if(index!==undefined&&field){items[index][field]=e.target.value;if(field==='rate'&&data.units_enabled)items[index].unit_rate_decimal=e.target.value;}if(field||e.target===common||e.target===round)calculate()});
+ form.addEventListener('input',e=>{const index=e.target.closest('[data-index]')?.dataset.index,field=e.target.dataset.field;if(index!==undefined&&field){items[index][field]=e.target.value;if(field==='rate'&&data.units_enabled)items[index].unit_rate_decimal=e.target.value;}if(field||e.target===common||e.target===round||e.target===manualRound)calculate()});
  document.addEventListener('billing-product-created',event=>{data.products.push(event.detail)});
  document.addEventListener('billing-customer-created',event=>{data.customers.push(event.detail);calculate()});
+ document.querySelector('#walk-in-state')?.addEventListener('input',calculate);
  document.querySelector('#customer').addEventListener('change',calculate);document.querySelector('#invoice-type').addEventListener('change',calculate);document.querySelector('#received').addEventListener('input',calculate);
  document.querySelector('#add-product').addEventListener('click',()=>{const p=data.products.find(p=>p.id===Number(document.querySelector('#product-picker').value));if(!p)return;items.push({product_id:p.id,name:p.name,quantity:1,rate:p.selling_price/100,mrp:p.mrp/100,discount:0,gst:p.data.gst,hsn:p.data.hsn,unit:p.data.unit,...(data.units_enabled?{unit_choice:'PRIMARY',unit_rate_decimal:String(p.selling_price/100),pricing_mode:p.data.pricing_mode||'EXCLUSIVE'}:{})});render()});
  document.querySelector('#additional-charge')?.addEventListener('click',()=>{items.push({is_charge:true,product_id:null,name:'',quantity:1,rate:0,mrp:0,discount:0,gst:data.business.gst_rates.split(',')[0],hsn:'',unit:'CHARGE'});render();(charges?.lastChild||rows.lastChild).querySelector('input').focus()});

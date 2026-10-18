@@ -3,8 +3,8 @@
  const customers=JSON.parse(source.textContent).customers;
  const search=document.querySelector('#customer-search'),selected=document.querySelector('#customer'),results=document.querySelector('#customer-results');
  const popup=document.querySelector('#customer-popup'),quick=document.querySelector('#quick-customer-form');
- function choose(customer){selected.value=customer.id;search.value=customer.name;results.hidden=true;selected.dispatchEvent(new Event('change'));}
- function open(){quick.reset();quick.elements.name.value=search.value.trim();document.querySelector('#quick-customer-error').hidden=true;popup.showModal();quick.elements.name.focus();}
+ function choose(customer){const walk=document.querySelector('#walk-in');if(walk)walk.checked=false;search.disabled=false;selected.value=customer.id;search.value=customer.name;results.hidden=true;selected.dispatchEvent(new Event('change'));}
+ function open(){const walk=document.querySelector('#walk-in');if(walk)walk.checked=false;search.disabled=false;quick.reset();quick.elements.name.value=search.value.trim();document.querySelector('#quick-customer-error').hidden=true;popup.showModal();quick.elements.name.focus();}
  function show(){
   const query=search.value.trim().toLowerCase();results.replaceChildren();
   const matches=customers.filter(c=>[c.name,c.data.phone,c.data.email].join(' ').toLowerCase().includes(query)).slice(0,25);

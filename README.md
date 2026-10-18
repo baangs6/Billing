@@ -151,3 +151,5 @@ Billing adjustments: use the Invoice summary buttons for a common discount amoun
 See [feature comparison](docs/FEATURE_PROGRESS.md), [capability map](docs/CAPABILITY_MAP.md) and [implementation/operation review](docs/IMPLEMENTATION_REVIEW.md). The development modules require an explicitly approved additive storage preparation; they are not automatically migrated or deployed. The full master checklist is not claimed complete. See [verification](docs/VERIFICATION.md), [review findings](docs/REVIEW_LOG.md), and [changed files](docs/FILES_CHANGED.md).
 
 Navigation consolidation: Finance includes transaction and bank-account views; Reports shares one selector across all 19 report types. Existing URLs, data, controls and export formats remain available. See [navigation merge](docs/NAVIGATION_MERGE.md).
+
+Invoice creation also supports fully paid walk-in sales, editable due dates, customer balance details, manual round-off, quick bank creation and per-invoice printing preferences. See [Invoice workflow](docs/BILLING_WORKFLOW.md) for behavior, validation and remaining gaps.

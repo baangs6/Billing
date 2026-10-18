@@ -79,3 +79,8 @@ Local development branch: `codex/complete-billing-features`; baseline `c2333e7`.
 ## Persistent storage
 
 Nine additive collections and a partial payment submission index were previously activated with explicit approval. The navigation consolidation requires no data migration. See IMPLEMENTATION_REVIEW.md and NAVIGATION_MERGE.md for activation and verification details. Nothing has been pushed or deployed to Render.
+
+
+## Invoice creation follow-up
+
+Additional files: `billing_options.py`, `static/billing-options.js`, `templates/billing_bank_popup.html`, `tests/test_billing_options.py`, `tests/test_billing_workflow.py`, `tests/test_thermal_layouts.py`, and `docs/BILLING_WORKFLOW.md`. Existing billing, account, report, PDF and profile modules/templates were extended in place. No schema migration is needed; no old business records are rewritten.

@@ -16,7 +16,9 @@ def install_profile(app,db,audit,settings):
                 if not re.fullmatch(r'[A-Z]{5}[0-9]{4}[A-Z]',extra['pan']): raise ValueError('Enter PAN in uppercase format.')
             theme=request.form.get('invoice_theme','A5');payment=request.form.get('payment_details','BOTH');kind=request.form.get('business_type','Retail')
             if theme not in THEMES or payment not in ('BANK','UPI','BOTH') or kind not in ('Retail','Wholesale','Distributor','Manufacturing','Service'): raise ValueError('Choose valid profile options.')
-            extra.update(invoice_theme=theme,payment_details=payment,business_type=kind)
+            layout=request.form.get('thermal_layout','CLASSIC')
+            if layout not in ('COMPACT','SIMPLE','CLASSIC','ADVANCED'): raise ValueError('Choose a valid thermal layout.')
+            extra.update(invoice_theme=theme,payment_details=payment,business_type=kind,thermal_layout=layout)
             for key in ('show_description','show_time','show_gst_columns','show_previous_balance','show_qr','empty_signature_box'):
                 extra[key]=request.form.get(key)=='1'
             registration=request.form.get('gst_registration')

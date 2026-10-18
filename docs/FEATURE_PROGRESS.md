@@ -23,9 +23,9 @@ Baseline: c2333e7. Working branch: codex/complete-billing-features. The user app
 | Non-GST billbook theme. | Existing / preserved | sales_invoice_pdf.py; original Non-GST format retained. |
 | A5 compact invoice. | Existing / preserved | Original A5 landscape renderer retained. |
 | 2-inch and 3-inch thermal printing. | Implemented in development | 58/80mm PDF formats; physical printer behavior not tested. |
-| Compact, Simple, Classic and Advanced thermal layouts. | Not implemented | Remains in the consolidated backlog; no production behavior is claimed. |
+| Compact, Simple, Classic and Advanced thermal layouts. | Implemented in development | Four PDF layout styles for both thermal widths; physical printer testing remains outstanding. |
 | Live invoice preview. | Partial | Existing live totals and saved PDF preview. No pre-posting PDF preview. |
-| Show/hide GST columns, item description, previous balance and invoice time. | Partial | GST column, description and creation-time preferences implemented. Previous-party-balance printing not implemented. |
+| Show/hide GST columns, item description, previous balance and invoice time. | Implemented in development | Snapshot printing preferences; billing can override time, previous balance and QR options per invoice. |
 | Configurable invoice-level fields such as PO number and vehicle number. | Implemented in development | Billing fields, immutable snapshot, invoice HTML and A4/A5 PDF. |
 | Customizable invoice columns. | Partial | GST-column visibility only; arbitrary column configuration not implemented. |
 | Custom terms, bank details, signature and logo placement. | Partial | Existing terms/logo/signature retained and payment visibility added. Arbitrary placement not implemented. |
@@ -92,7 +92,7 @@ Baseline: c2333e7. Working branch: codex/complete-billing-features. The user app
 | Product and service line items. | Existing / preserved | Existing catalog products and manual service lines retained. |
 | Wholesale price selection. | Implemented in development | Retail/wholesale selector for configured product prices. |
 | Item discounts and invoice discounts. | Partial | Existing legacy/proposal line discounts preserved; billing common discount retained as explicitly requested earlier. No new per-item discount UI. |
-| Additional charges and round-off. | Existing / preserved | Existing summary charges, common discount and optional rupee rounding retained. |
+| Additional charges and round-off. | Implemented in development | Existing charges/common discount retained; optional nearest-rupee or signed manual round-off (maximum INR 1) with server validation. |
 | Multiple payment methods. | Existing / preserved | Cash, UPI, Bank Transfer, Card, Cheque and Other retained. |
 | Partial and full payments. | Existing / preserved | Existing customer payment and payment editing workflows retained; refunded invoices protected. |
 | Invoice outstanding tracking. | Existing / preserved | Existing invoice balances extended with credit notes and refunds. |
@@ -163,3 +163,10 @@ The user approved activation on 18 October 2026. A fresh backup was restore-veri
 ## Scope honesty
 
 This is a substantial development increment, not completion of every master-checklist item. Not-implemented rows remain in the same consolidated task and must not be represented as finished or blocked solely by missing credentials.
+
+
+## Invoice workflow follow-up (2026-10-19)
+
+Added fully paid walk-in sales without customer profiles; customer billing/shipping/PAN/GSTIN/credit/balance details; editable due dates; a recorded e-way bill number; signed manual rounding; quick bank creation from billing; immutable print-bank snapshots; per-invoice footer/time/QR/previous-balance preferences; four thermal PDF styles and duplicate-copy output. Walk-in sales reserve customer_id 0 (IDs for real parties start at 1) and use immutable anonymous customer snapshots. No schema migration or backfill is required. Interstate walk-in sales accept a place-of-supply state. Walk-in balances/credits are included as an aggregate row in the customer-balance report.
+
+Still outstanding: batch/expiry/serial/IMEI tracking, TDS/TCS business rules, arbitrary custom header fields, pre-save PDF preview, authorized GST lookup/e-way generation, OCR review workflow, provider-driven messaging and scheduled CA delivery. Existing invoice common-discount design remains as requested; per-line discount inputs were not reintroduced.

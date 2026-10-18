@@ -13,6 +13,7 @@
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
       Preview
     </a>
+    <a class="secondary" href="/invoices/{{ inv.id }}/pdf?copy=duplicate">Duplicate PDF copy</a>
     <a class="primary" href="/invoices/{{ inv.id }}/pdf">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
       Download PDF
@@ -92,13 +93,15 @@
         {{ c.data.address }}<br>
         {{ c.data.state }} {{ c.data.pin }}<br>
         Phone: {{ c.data.phone }}
-        {% if inv.type == 'GST' %}<br>GSTIN: {{ c.data.gstin or '—' }}{% endif %}
+        {% if inv.type == 'GST' and c.data.gstin %}<br>GSTIN: {{ c.data.gstin }}{% endif %}
+        {% if c.data.shipping_address %}<br>Ship to: {{ c.data.shipping_address }}{% endif %}{% if c.data.pan %}<br>PAN: {{ c.data.pan }}{% endif %}
+        {% if b.get('extended',{}).get('show_previous_balance') and 'previous_balance' in inv.snapshot %}<br>Previous balance: {{ inv.snapshot.previous_balance|inr }}{% endif %}
       </p>
     </div>
     <div style="text-align:right">
       <p>
         <strong style="font-size:16px;color:var(--ink)">{{ inv.number }}</strong><br>
-        Invoice date: <strong>{{ inv.date }}</strong><br>{% for key,label in [('po_number','PO number'),('vehicle_number','Vehicle'),('due_date','Due date')] %}{% if inv.snapshot.get(key) %}{{ label }}: {{ inv.snapshot[key] }}<br>{% endif %}{% endfor %}
+        Invoice date: <strong>{{ inv.date }}</strong><br>{% for key,label in [('po_number','PO number'),('vehicle_number','Vehicle'),('eway_bill','E-way bill'),('due_date','Due date')] %}{% if inv.snapshot.get(key) %}{{ label }}: {{ inv.snapshot[key] }}<br>{% endif %}{% endfor %}
         Installation: {{ inv.snapshot.installation or '—' }}<br>
         Service: {{ inv.snapshot.service or '—' }}
       </p>
@@ -161,8 +164,8 @@
       <strong style="display:block;margin-bottom:4px">Terms & conditions</strong>
       <p class="preserve">{{ inv.snapshot.terms }}</p>
       <p style="margin-top:12px;font-size:12px">
-        Bank: {{ b.bank or '—' }}<br>
-        UPI: {{ b.upi or '—' }}
+        {% if b.get('extended',{}).get('payment_details','BOTH')!='UPI' and b.bank %}<span class="preserve">Bank: {{ b.bank }}</span><br>{% endif %}
+        {% if b.get('extended',{}).get('payment_details','BOTH')!='BANK' and b.upi %}UPI: {{ b.upi }}{% endif %}
       </p>
     </div>
     <div class="signature">

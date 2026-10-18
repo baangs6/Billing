@@ -34,7 +34,7 @@ def build_sales_invoice_pdf(inv):
     snapshot=inv['snapshot']; business=snapshot['business']; customer=snapshot['customer']; gst=inv['type']=='GST'
     columns_gst=gst and preferences.get('show_gst_columns',True)
     title='TAX INVOICE' if gst else 'BILL OF SUPPLY'
-    story=[table([[p(title,bold),p('ORIGINAL FOR RECIPIENT',right)]],[width/2,width/2],commands=[('GRID',(0,0),(-1,-1),0,colors.white)]),Spacer(1,3)]
+    story=[table([[p(title,bold),p(inv.get('copy_label','ORIGINAL FOR RECIPIENT'),right)]],[width/2,width/2],commands=[('GRID',(0,0),(-1,-1),0,colors.white)]),Spacer(1,3)]
     seller=[p(business['name'],heading),p(' '.join(filter(None,[business.get('address'),business.get('state'),business.get('pin')])),center)]
     contacts=' | '.join(filter(None,[('Mobile: '+business['phone']) if business.get('phone') else '',business.get('email','')]))
     if contacts: seller.append(p(contacts,center))
@@ -50,11 +50,14 @@ def build_sales_invoice_pdf(inv):
     if address: bill.append(p(address))
     if customer['data'].get('phone'): bill.append(p('Mobile: '+customer['data']['phone']))
     if gst and customer['data'].get('gstin'): bill.append(p('GSTIN: '+customer['data']['gstin']))
+    if customer['data'].get('shipping_address'): bill.append(p('Ship to: '+customer['data']['shipping_address']))
+    if customer['data'].get('pan'): bill.append(p('PAN: '+customer['data']['pan']))
+    if preferences.get('show_previous_balance') and 'previous_balance' in snapshot: bill.append(p('Previous balance: '+money(snapshot['previous_balance'])))
     number=[p('Invoice No.',bold),p(inv['number'])]
     if inv['status']!='FINAL': number.append(p('Status: '+inv['status']))
     dated=[p('Invoice Date',bold),p(date.fromisoformat(inv['date']).strftime('%d/%m/%Y'))]
     if preferences.get('show_time') and inv.get('created_at'): dated.append(p('Created: '+inv['created_at']+' UTC'))
-    for key,label in [('po_number','PO number'),('vehicle_number','Vehicle'),('due_date','Due date'),('installation','Installation'),('service','Service')]:
+    for key,label in [('po_number','PO number'),('vehicle_number','Vehicle'),('eway_bill','E-way bill'),('due_date','Due date'),('installation','Installation'),('service','Service')]:
         if snapshot.get(key): dated.append(p(label+': '+snapshot[key]))
     story.append(table([[bill,number,dated]],[width*.5,width*.25,width*.25]))
     headings=['S.NO.','ITEMS / HSN' if gst else 'ITEMS','QTY.','MRP']+(['GST / TAX'] if columns_gst else [])+['AMOUNT']
@@ -121,7 +124,9 @@ def upi_qr(business,amount):
 
 def build_thermal_pdf(inv,theme):
     output=io.BytesIO();width=164 if theme=='THERMAL_58' else 227;usable=width-16
-    normal=ParagraphStyle('thermal',fontName='Helvetica',fontSize=7,leading=9)
+    preferences=inv['snapshot']['business'].get('extended',{});layout=preferences.get('thermal_layout','CLASSIC')
+    size={'COMPACT':6,'SIMPLE':8,'CLASSIC':7,'ADVANCED':7.5}.get(layout,7)
+    normal=ParagraphStyle('thermal',fontName='Helvetica',fontSize=size,leading=size+2)
     bold=ParagraphStyle('thermalbold',parent=normal,fontName='Helvetica-Bold')
     def p(value,strong=False): return Paragraph(escape(str(value or '')).replace('\n','<br/>'),bold if strong else normal)
     def amount(value): return f'INR {Decimal(value)/100:.2f}'
@@ -132,8 +137,12 @@ def build_thermal_pdf(inv,theme):
         if preferences.get(key): story.append(p((label+': ' if label else '')+preferences[key]))
     story.extend([Spacer(1,8),p('TAX INVOICE' if gst else 'BILL OF SUPPLY',True),p(inv['number']),p(inv['date']),p('Bill to: '+customer['name'])])
     if gst and customer['data'].get('gstin'): story.append(p(customer['data']['gstin']))
-    for key,label in [('po_number','PO'),('vehicle_number','Vehicle'),('due_date','Due')]:
+    if customer['data'].get('shipping_address'): story.append(p('Ship to: '+customer['data']['shipping_address']))
+    if customer['data'].get('pan'): story.append(p('PAN: '+customer['data']['pan']))
+    if preferences.get('show_previous_balance') and 'previous_balance' in inv['snapshot']: story.append(p('Previous balance: '+amount(inv['snapshot']['previous_balance'])))
+    for key,label in [('po_number','PO'),('vehicle_number','Vehicle'),('eway_bill','E-way bill'),('due_date','Due')]:
         if inv['snapshot'].get(key): story.append(p(label+': '+inv['snapshot'][key]))
+    if inv.get('copy_label'): story.append(p(inv['copy_label'],True))
     if preferences.get('show_time') and inv.get('created_at'): story.append(p('Created: '+inv['created_at']+' UTC'))
     rows=[[p('Item',True),p('Amount',True)]]
     for item in inv['items']:
@@ -147,6 +156,10 @@ def build_thermal_pdf(inv,theme):
         if key in inv and (key not in ('cgst','sgst','igst') or inv[key]): rows.append([p(label,key=='total'),p(amount(inv[key]),key=='total')])
     table=Table(rows,colWidths=[usable*.62,usable*.38],repeatRows=1,hAlign='LEFT',splitInRow=1)
     table.setStyle(TableStyle([('VALIGN',(0,0),(-1,-1),'TOP'),('LEFTPADDING',(0,0),(-1,-1),1),('RIGHTPADDING',(0,0),(-1,-1),1),('LINEBELOW',(0,0),(-1,0),.5,colors.black)]))
+    if layout=='CLASSIC': table.setStyle(TableStyle([('BOX',(0,0),(-1,-1),.5,colors.black)]))
+    elif layout=='ADVANCED': table.setStyle(TableStyle([('ROWBACKGROUNDS',(0,1),(-1,-1),[colors.white,colors.HexColor('#eeeeee')]),('BACKGROUND',(0,0),(-1,0),colors.HexColor('#dddddd'))]))
+    elif layout=='SIMPLE': table.setStyle(TableStyle([('TOPPADDING',(0,0),(-1,-1),5),('BOTTOMPADDING',(0,0),(-1,-1),5)]))
+    else: table.setStyle(TableStyle([('TOPPADDING',(0,0),(-1,-1),1),('BOTTOMPADDING',(0,0),(-1,-1),1)]))
     story.extend([Spacer(1,6),table,Spacer(1,6),p(inv['snapshot'].get('notes')),p(inv['snapshot'].get('terms'))])
     mode=preferences.get('payment_details','BOTH')
     if mode!='UPI': story.append(p(business.get('bank')))
