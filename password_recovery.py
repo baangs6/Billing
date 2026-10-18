@@ -38,7 +38,7 @@ def install_recovery(app, backend, owner=False):
             if attempt and attempt['count']>=5 and __import__('time').time()-attempt['started']<900:
                 flash('Too many requests. Please wait 15 minutes.','error'); return page(),429
             backend.failed_login(key)
-            user=collection.find_one({'email':email,'active':True})
+            user=collection.find_one({'email':email,'active':True,**({'identity_id':{'$exists':False}} if not owner else {})})
             if user:
                 token=secrets.token_urlsafe(32); token_hash=digest(token)
                 backend.database.password_resets.insert_one({'_id':token_hash,'kind':kind,'user_id':user['id'],'business_id':user.get('business_id'),'version':user.get('session_version',0),'expires_at':now()+timedelta(minutes=30)})

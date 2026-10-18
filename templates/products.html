@@ -105,7 +105,7 @@
     {% for k,l in [('purchase_price','Purchase price'),('mrp','MRP'),('selling_price','Selling price')] %}
       {{ field(k,l+' (optional)' if k=='purchase_price' else l,edit[k]/100 if edit else '' if k=='purchase_price' else 0,'number',k!='purchase_price') }}
     {% endfor %}
-    <label>GST rate
+    <label data-gst-control>GST rate
       <select name="gst">
         {% for rate in business.gst_rates.split(',') %}
           <option {{ 'selected' if edit and edit.data.gst == rate else '' }}>{{ rate }}</option>

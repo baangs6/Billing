@@ -26,7 +26,7 @@
           <tr>
             <td>
               <strong>{{ user.name }}</strong>
-              <small>{{ user.email }}</small>
+              <small>{{ 'Shared owner login' if user.get('identity_id') else user.email }}</small>
             </td>
             <td>
               {% for role in roles if role.id == user.role_id %}
@@ -57,13 +57,13 @@
       <label class="full">Name
         <input name="name" value="{{ edit.name if edit else '' }}" required placeholder="Team member name">
       </label>
-      <label class="full">Email
+{% if edit and edit.get('identity_id') %}<input type="hidden" name="email" value="{{ edit.email }}"><p class="full">Uses the shared owner login. Change credentials from the primary business.</p>{% else %}      <label class="full">Email
         <input type="email" name="email" value="{{ edit.email if edit else '' }}" required placeholder="member@company.com">
       </label>
       <label class="full">{{ 'New password (leave blank to retain)' if edit else 'Password' }}
         <input type="password" name="password" minlength="12" {{ 'required' if not edit else '' }} autocomplete="new-password">
         <small>At least 12 characters</small>
-      </label>
+      </label>{% endif %}
       <label class="full">Role
         <select name="role_id">
           {% for role in roles %}

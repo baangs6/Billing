@@ -44,7 +44,7 @@
       </label>
       <label>Tax treatment
         <select id="invoice-type" name="type">
-          {% if policy.features.gst %}
+          {% if policy.features.gst and gst_registered %}
             <option value="GST" {{ 'selected' if edit and edit.type == 'GST' else '' }}>GST quotation</option>
           {% endif %}
           <option value="NON-GST" {{ 'selected' if edit and edit.type == 'NON-GST' else '' }}>Non-GST quotation</option>

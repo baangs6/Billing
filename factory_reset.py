@@ -3,7 +3,23 @@ import time
 from werkzeug.security import check_password_hash
 
 
+def preserve_shared_identities(database, ms, business_id, keep_user=None):
+    """Move credentials to a surviving membership before removing tenant users."""
+    roots=list(database.users.find({'business_id':business_id,'identity_id':{'$exists':False}},session=ms))
+    for root in roots:
+        if root['id']==keep_user: continue
+        for target in database.users.find({'identity_id':root['id'],'business_id':{'$ne':business_id},'active':True},session=ms):
+            if not database.businesses.find_one({'id':target['business_id']},session=ms): continue
+            if not database.roles.find_one({'id':target.get('role_id'),'business_id':target['business_id']},session=ms): continue
+            database.users.update_one({'id':root['id']},{'$set':{'business_id':target['business_id'],'role_id':target['role_id']},'$inc':{'session_version':1}},session=ms)
+            database.users.update_one({'id':target['id']},{'$set':{'active':False},'$inc':{'session_version':1}},session=ms)
+            break
+
+
 def confirm_reset(backend, user, fields, phrase, kind):
+    if user.get('identity_id'):
+        user=backend.database.users.find_one({'id':user['identity_id'],'active':True})
+        if not user: raise ValueError('Shared account is no longer active.')
     if fields.get('confirmation','') != phrase:
         raise ValueError('Type '+phrase+' exactly to confirm permanent deletion.')
     key='factory-reset:'+kind+':'+str(user['id'])

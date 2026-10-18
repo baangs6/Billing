@@ -4,6 +4,7 @@ import base64
 from datetime import date
 from decimal import Decimal
 from product_units import rate_text
+from company_profile import header_fields
 from xml.sax.saxutils import escape
 from PIL import Image as PILImage
 from reportlab.lib import colors
@@ -39,8 +40,7 @@ def build_sales_invoice_pdf(inv):
     contacts=' | '.join(filter(None,[('Mobile: '+business['phone']) if business.get('phone') else '',business.get('email','')]))
     if contacts: seller.append(p(contacts,center))
     if gst and business.get('gstin'): seller.append(p('GSTIN: '+business['gstin'],center))
-    for key,label in [('city','City'),('pan','PAN'),('msme','MSME'),('drug_licence','Drug licence'),('website','Website'),('additional_info','')]:
-        if preferences.get(key): seller.append(p((label+': ' if label else '')+preferences[key],center))
+    for label,value in header_fields(business): seller.append(p(label+': '+value,center))
     if business.get('logo'):
         header=table([[image(business['logo'],48,44),seller]],[65,width-65],commands=[('LINEAFTER',(0,0),(0,0),0,colors.white)])
     else: header=table([[seller]],[width])
@@ -131,10 +131,14 @@ def build_thermal_pdf(inv,theme):
     def p(value,strong=False): return Paragraph(escape(str(value or '')).replace('\n','<br/>'),bold if strong else normal)
     def amount(value): return f'INR {Decimal(value)/100:.2f}'
     business=inv['snapshot']['business'];customer=inv['snapshot']['customer'];preferences=business.get('extended',{});gst=inv['type']=='GST'
-    story=[p(business['name'],True),p(business.get('address')),p(business.get('phone'))]
+    story=[]
+    def picture(data,maxw,maxh):
+        blob=base64.b64decode(data.split(',',1)[1]);im=PILImage.open(io.BytesIO(blob));w,h=im.size;scale=min(maxw/w,maxh/h)
+        return Image(io.BytesIO(blob),width=w*scale,height=h*scale)
+    if business.get('logo'): story.append(picture(business['logo'],usable,40))
+    story.extend([p(business['name'],True),p(business.get('address')),p(business.get('phone'))])
     if gst and business.get('gstin'): story.append(p('GSTIN '+business['gstin']))
-    for key,label in [('city','City'),('pan','PAN'),('msme','MSME'),('drug_licence','Drug licence'),('website','Website'),('additional_info','')]:
-        if preferences.get(key): story.append(p((label+': ' if label else '')+preferences[key]))
+    for label,value in header_fields(business): story.append(p(label+': '+value))
     story.extend([Spacer(1,8),p('TAX INVOICE' if gst else 'BILL OF SUPPLY',True),p(inv['number']),p(inv['date']),p('Bill to: '+customer['name'])])
     if gst and customer['data'].get('gstin'): story.append(p(customer['data']['gstin']))
     if customer['data'].get('shipping_address'): story.append(p('Ship to: '+customer['data']['shipping_address']))
@@ -166,6 +170,9 @@ def build_thermal_pdf(inv,theme):
     if mode!='BANK':
         story.append(p(business.get('upi')))
         if preferences.get('show_qr') and business.get('upi') and inv.get('balance',inv['total'])>0: story.append(upi_qr(business,inv.get('balance',inv['total'])))
+    if business.get('signature'): story.append(picture(business['signature'],usable,40))
+    elif preferences.get('empty_signature_box'):
+        box=Table([[p('Authorized Signatory')]],colWidths=[usable]);box.setStyle(TableStyle([('BOX',(0,0),(-1,-1),.5,colors.black),('TOPPADDING',(0,0),(-1,-1),22)]));story.append(box)
     story.append(p('For '+business['name']))
     height=max(144,min(2800,sum(flowable.wrap(usable,10000)[1] for flowable in story)+26))
     document=BaseDocTemplate(output,pagesize=(width,height),title=inv['number'])

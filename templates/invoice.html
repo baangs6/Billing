@@ -75,7 +75,7 @@
       <img src="{{ b.logo }}" class="invoice-logo" alt="Business Logo">
     {% endif %}
     <div>
-      <h2>{{ b.name }}</h2>
+      <h2>{{ b.name }}</h2>{% for label,value in header_fields(b) %}<small>{{ label }}: {{ value }}</small>{% endfor %}
       <p>
         {{ b.address }}<br>
         Phone: {{ b.phone }} · {{ b.email }}<br>

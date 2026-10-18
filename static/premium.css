@@ -2917,3 +2917,7 @@ dialog .panel-heading .secondary {
 .page-heading>div:first-child:not(.toolbar){min-width:min(240px,100%)}
 .page-heading>.toolbar{flex-wrap:wrap;justify-content:flex-end;margin-left:auto}
 #walk-in-state-label[hidden]{display:none}
+
+.custom-header-row{display:grid;grid-template-columns:1fr 2fr auto;gap:12px;align-items:end;margin-bottom:12px}.commerce-page label[hidden]{display:none}@media(max-width:640px){.custom-header-row{grid-template-columns:1fr}}
+
+body[data-gst-registered=false] [data-gst-control]{display:none}

@@ -22,3 +22,19 @@ def test_thermal_layouts_and_duplicate_fit_paper(theme,layout):
             for block in page.get_text('blocks'):
                 assert block[0]>=0 and block[2]<=page.rect.width+1
     assert inv==before
+
+
+@pytest.mark.parametrize('theme',['A5','A4_CLASSIC','A4_SIMPLE','A4_ADVANCED','THERMAL_58','THERMAL_80'])
+def test_custom_headers_and_uploaded_identity_images(theme):
+    import io,base64
+    from PIL import Image
+    blob=io.BytesIO();Image.new('RGB',(160,60),'blue').save(blob,format='PNG')
+    asset='data:image/png;base64,'+base64.b64encode(blob.getvalue()).decode()
+    inv=sample_invoice(theme);business=inv['snapshot']['business']
+    business.update(logo=asset,signature=asset)
+    business['extended']['custom_headers']=[dict(name='Alt number',value='555-0123')]
+    before=deepcopy(inv)
+    with pymupdf.open(stream=build_sales_invoice_pdf(inv),filetype='pdf') as document:
+        assert '555-0123' in ''.join(page.get_text() for page in document)
+        assert any(page.get_images() for page in document)
+    assert inv==before

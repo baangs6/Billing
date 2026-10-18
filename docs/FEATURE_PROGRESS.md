@@ -169,4 +169,9 @@ This is a substantial development increment, not completion of every master-chec
 
 Added fully paid walk-in sales without customer profiles; customer billing/shipping/PAN/GSTIN/credit/balance details; editable due dates; a recorded e-way bill number; signed manual rounding; quick bank creation from billing; immutable print-bank snapshots; per-invoice footer/time/QR/previous-balance preferences; four thermal PDF styles and duplicate-copy output. Walk-in sales reserve customer_id 0 (IDs for real parties start at 1) and use immutable anonymous customer snapshots. No schema migration or backfill is required. Interstate walk-in sales accept a place-of-supply state. Walk-in balances/credits are included as an aggregate row in the customer-balance report.
 
-Still outstanding: batch/expiry/serial/IMEI tracking, TDS/TCS business rules, arbitrary custom header fields, pre-save PDF preview, authorized GST lookup/e-way generation, OCR review workflow, provider-driven messaging and scheduled CA delivery. Existing invoice common-discount design remains as requested; per-line discount inputs were not reintroduced.
+Still outstanding: batch/expiry/serial/IMEI tracking, TDS/TCS business rules, pre-save PDF preview, authorized GST lookup/e-way generation, OCR review workflow, provider-driven messaging and scheduled CA delivery. Existing invoice common-discount design remains as requested; per-line discount inputs were not reintroduced.
+
+
+## Business settings follow-up (2026-10-19)
+
+Added validated custom headers, multiple business classifications, industry/registration choices, GST control visibility, Account screen, separately approved/subscribed businesses under one login, password-confirmed year closing and company deletion. Existing reset now preserves shared identities. See BUSINESS_SETTINGS.md for boundaries and intentionally pending TDS/TCS and seller tax invoices. No historical records are migrated or rewritten.

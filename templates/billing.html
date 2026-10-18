@@ -47,7 +47,7 @@
       <label>SKU / product code (optional)<input name="sku" maxlength="150"></label>
       <label>Unit<input name="unit" value="PCS" maxlength="30" required></label>
       <label>HSN / SAC<input name="hsn" maxlength="30"></label>
-      <label>GST rate
+      <label data-gst-control>GST rate
         <select name="gst">
           {% for rate in business.gst_rates.split(',') %}
             <option>{{ rate }}</option>
@@ -126,7 +126,7 @@
       <div class="stitch-field">
         <label class="stitch-label" for="invoice-type">Invoice type</label>
         <select id="invoice-type" name="type" class="stitch-select">
-          {% if policy.features.gst %}
+          {% if policy.features.gst and gst_registered %}
             <option value="GST" {{ 'selected' if edit and edit.type == 'GST' else '' }}>GST Invoice</option>
           {% endif %}
           <option value="NON-GST" {{ 'selected' if not edit or edit.type == 'NON-GST' else '' }}>Non-GST / Bill of Supply</option>

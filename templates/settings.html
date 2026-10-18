@@ -17,7 +17,7 @@
 {% endblock %}
 
 {% block content %}
-{% if trade_ready %}<div class="toolbar"><a class="secondary" href="/business-profile">Additional profile &amp; invoice printing</a></div>{% endif %}
+{% if trade_ready %}<div class="toolbar"><a class="secondary" href="/business-profile">Additional profile &amp; invoice printing</a><a class="secondary" href="/account">Account &amp; subscription</a><a class="secondary" href="/businesses">Your businesses</a></div>{% endif %}
 
 {# ========================================================================= #}
 {# ACTION REQUIRED: INVENTORY RECONCILIATION                                #}
@@ -143,32 +143,7 @@
             <span>State / POS Jurisdiction <span class="req">*</span></span>
           </label>
           <div class="stitch-settings-input-wrap">
-            <input list="indian-states" class="stitch-settings-input" id="setting-state" name="state" type="text" value="{{ business.state or 'Tamil Nadu' }}" required placeholder="e.g. Tamil Nadu, Kerala, Maharashtra">
-            <datalist id="indian-states">
-              <option value="Kerala (Code 32)">Kerala (Code 32)</option>
-              <option value="Tamil Nadu (Code 33)">Tamil Nadu (Code 33)</option>
-              <option value="Karnataka (Code 29)">Karnataka (Code 29)</option>
-              <option value="Maharashtra (Code 27)">Maharashtra (Code 27)</option>
-              <option value="Delhi (Code 07)">Delhi (Code 07)</option>
-              <option value="Gujarat (Code 24)">Gujarat (Code 24)</option>
-              <option value="Telangana (Code 36)">Telangana (Code 36)</option>
-              <option value="Andhra Pradesh (Code 37)">Andhra Pradesh (Code 37)</option>
-              <option value="Uttar Pradesh (Code 09)">Uttar Pradesh (Code 09)</option>
-              <option value="West Bengal (Code 19)">West Bengal (Code 19)</option>
-              <option value="Rajasthan (Code 08)">Rajasthan (Code 08)</option>
-              <option value="Madhya Pradesh (Code 23)">Madhya Pradesh (Code 23)</option>
-              <option value="Haryana (Code 06)">Haryana (Code 06)</option>
-              <option value="Punjab (Code 03)">Punjab (Code 03)</option>
-              <option value="Goa (Code 30)">Goa (Code 30)</option>
-              <option value="Bihar (Code 10)">Bihar (Code 10)</option>
-              <option value="Odisha (Code 21)">Odisha (Code 21)</option>
-              <option value="Assam (Code 18)">Assam (Code 18)</option>
-              <option value="Jharkhand (Code 20)">Jharkhand (Code 20)</option>
-              <option value="Chhattisgarh (Code 22)">Chhattisgarh (Code 22)</option>
-              <option value="Uttarakhand (Code 05)">Uttarakhand (Code 05)</option>
-              <option value="Himachal Pradesh (Code 02)">Himachal Pradesh (Code 02)</option>
-              <option value="Jammu &amp; Kashmir (Code 01)">Jammu &amp; Kashmir (Code 01)</option>
-            </datalist>
+            {% set selected_state=business.state or 'Tamil Nadu' %}<select class="stitch-settings-input" id="setting-state" name="state" required>{% include 'indian_state_options.html' %}</select>
           </div>
         </div>
 
@@ -853,4 +828,5 @@
     }
   });
 </script>
+{% include 'business_lifecycle.html' %}
 {% endblock %}

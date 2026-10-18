@@ -84,3 +84,8 @@ Nine additive collections and a partial payment submission index were previously
 ## Invoice creation follow-up
 
 Additional files: `billing_options.py`, `static/billing-options.js`, `templates/billing_bank_popup.html`, `tests/test_billing_options.py`, `tests/test_billing_workflow.py`, `tests/test_thermal_layouts.py`, and `docs/BILLING_WORKFLOW.md`. Existing billing, account, report, PDF and profile modules/templates were extended in place. No schema migration is needed; no old business records are rewritten.
+
+
+## Business settings follow-up
+
+New modules `business_accounts.py` and `fiscal_period.py`; new account/business/lifecycle templates, `static/business-profile.js`, `tests/test_business_settings.py` and `docs/BUSINESS_SETTINGS.md`. Existing profile, authentication, tenant store, reset, print exports, GST controls and settings navigation were extended. No new dependency, collection or index is required.

@@ -31,7 +31,7 @@
 <article class="invoice-paper">
   <div class="invoice-header">
     <div>
-      <h2>{{ proposal.snapshot.business.name }}</h2>
+      <h2>{{ proposal.snapshot.business.name }}</h2>{% for label,value in header_fields(proposal.snapshot.business) %}<small>{{ label }}: {{ value }}</small>{% endfor %}
       <p class="preserve">{{ proposal.snapshot.business.address }}</p>
       <p>{{ proposal.snapshot.business.phone }} · {{ proposal.snapshot.business.email }}</p>
     </div>

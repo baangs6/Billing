@@ -1,3 +1,4 @@
+from fiscal_period import validate_period
 """MongoDB storage with mandatory tenant scoping and transactional business writes."""
 import os
 import re
@@ -157,7 +158,7 @@ class MongoBackend:
         return clean(self.database.users.find_one(query))
 
     def login_user(self,email):
-        return clean(self.database.users.find_one({'email':str(email)}))
+        return clean(self.database.users.find_one({'email':str(email),'identity_id':{'$exists':False}}))
 
     def login_attempt(self,key):
         return clean(self.database.login_attempts.find_one({'_id':key}))
@@ -205,6 +206,7 @@ class MongoStore:
     def insert(self,name,document):
         self._require_transaction()
         if name not in COLLECTIONS: raise ValueError('Unknown collection.')
+        validate_period(getattr(self,'closed_through',None),name,document)
         doc=numeric_ids(dict(document))
         if name in TENANT_COLLECTIONS:
             if self.business_id is None or doc.get('business_id',self.business_id)!=self.business_id: raise PermissionError('Tenant mismatch.')
@@ -221,6 +223,7 @@ class MongoStore:
         self._require_transaction()
         if name not in TENANT_COLLECTIONS or self.business_id is None: raise PermissionError('Tenant collection required.')
         if not documents or len(documents)>4000: raise ValueError('Insert between 1 and 4000 records.')
+        for document in documents: validate_period(getattr(self,'closed_through',None),name,document)
         sequence=self.backend.database.counters.find_one_and_update({'_id':name},{'$inc':{'value':Int64(len(documents))}},return_document=ReturnDocument.AFTER,session=self.mongo_session)
         if not sequence: raise RuntimeError('Database schema is not prepared.')
         first=int(sequence['value'])-len(documents)+1
@@ -234,6 +237,8 @@ class MongoStore:
 
     def update(self,name,query,values=None,inc=None):
         self._require_transaction(); values=values or {}
+        service_only=name=='invoices' and set(values)=={'service_completed_at'} and set(inc or {})<={'version'}
+        if getattr(self,'closed_through',None) and not service_only: validate_period(self.closed_through,name,values,self.one(name,query))
         if 'business_id' in values or 'id' in values: raise PermissionError('Record identity cannot change.')
         update={}
         if values: update['$set']=fixed_integers(values)
@@ -243,6 +248,10 @@ class MongoStore:
     def delete(self,name,query):
         self._require_transaction()
         if name!='invoice_items': raise PermissionError('Financial records cannot be deleted.')
+        if getattr(self,'closed_through',None):
+            for row in self.find(name,query):
+                parent=self.one('invoices',{'id':row['invoice_id']})
+                validate_period(self.closed_through,'invoices',parent or {})
         return self.backend.database[name].delete_many(self._query(name,query),session=self.mongo_session)
 
     def run_transaction(self,callback):

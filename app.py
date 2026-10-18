@@ -19,6 +19,7 @@ from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image
 from xml.sax.saxutils import escape
 from invoice_pdf import build_invoice_pdf
+from company_profile import header_fields
 from billing_options import due_date, manual_rounding, customer_balances
 from accounts import account_key
 from accounting_reports import REPORT_TYPES as ACCOUNTING_REPORT_TYPES
@@ -177,6 +178,9 @@ def create_app(database=None, backend=None):
         if 'user' in session:
             user=backend.session_user(session['user'],session.get('business'))
             if not user or not user.get('active',False) or user.get('session_version',0)!=session.get('version',0): session.clear()
+            elif user.get('identity_id'):
+                identity=backend.database.users.find_one({'id':user['identity_id'],'active':True})
+                if not identity or session.get('identity_id')!=identity['id'] or session.get('identity_version')!=identity.get('session_version',0): session.clear()
         session.setdefault('csrf',secrets.token_hex(32))
         if request.method=='POST' and not secrets.compare_digest(session['csrf'],request.form.get('csrf','')):
             if request.endpoint in ('register','login'):
@@ -216,7 +220,7 @@ def create_app(database=None, backend=None):
                 if start.month==4 and start.day==1 and request.args.get('to')==f'{start.year+1}-03-31': financial_year=start.year
             except ValueError: pass
         financial_years=sorted(set(range(current_fy-4,current_fy+1))|{financial_year},reverse=True)
-        return dict(active_section={'accounts_page':'finance_page','accounting_reports':'reports'}.get(request.endpoint,request.endpoint),sales_report_types=SALES_REPORT_TYPES,accounting_report_types=ACCOUNTING_REPORT_TYPES,trade_ready=trade_ready,bank_accounts=db().find('bank_accounts',{'archived':{'$ne':True}},projection={'id':1,'name':1,'kind':1}) if 'user' in session else [],financial_year=financial_year,financial_years=financial_years,business=settings() if 'user' in session else DEFAULTS, today=today(), csrf=session.get('csrf'), nav=nav, available_plans=plans, policy=policy,permissions=PERMISSIONS)
+        return dict(header_fields=header_fields,gst_registered=bool(settings().get('gstin')) if 'user' in session else False,active_section={'accounts_page':'finance_page','accounting_reports':'reports'}.get(request.endpoint,request.endpoint),sales_report_types=SALES_REPORT_TYPES,accounting_report_types=ACCOUNTING_REPORT_TYPES,trade_ready=trade_ready,bank_accounts=db().find('bank_accounts',{'archived':{'$ne':True}},projection={'id':1,'name':1,'kind':1}) if 'user' in session else [],financial_year=financial_year,financial_years=financial_years,business=settings() if 'user' in session else DEFAULTS, today=today(), csrf=session.get('csrf'), nav=nav, available_plans=plans, policy=policy,permissions=PERMISSIONS)
 
     app.jinja_env.filters['inr'] = lambda x: f'₹{Decimal(x)/100:,.2f}'
     app.jinja_env.filters['qty'] = lambda x: f'{Decimal(x)/1000:g}'
@@ -888,7 +892,7 @@ def create_app(database=None, backend=None):
     def settings_page():
         if request.method=='POST':
             if request.form.get('action') in ('reset_company','reset_sections'):
-                from factory_reset import confirm_reset
+                from factory_reset import confirm_reset,preserve_shared_identities
                 from mongo_store import TENANT_COLLECTIONS
                 user=owned('users',session['user'])
                 role=owned('roles',user['role_id'])
@@ -902,6 +906,7 @@ def create_app(database=None, backend=None):
                     return redirect(url_for('settings_page'))
                 confirm_reset(backend,user,request.form,'RESET COMPANY','company')
                 bid=session['business']; ms=db().mongo_session
+                preserve_shared_identities(backend.database,ms,bid,keep_user=user['id'])
                 for name in TENANT_COLLECTIONS-{'users','subscriptions','roles'}:
                     backend.database[name].delete_many({'business_id':bid},session=ms)
                 backend.database.users.delete_many({'business_id':bid,'id':{'$ne':user['id']}},session=ms)
@@ -979,6 +984,8 @@ def create_app(database=None, backend=None):
                 import base64
                 from PIL import Image as PILImage
                 blob=base64.b64decode(row[1].split(',')[1]); im=PILImage.open(io.BytesIO(blob)); w,h=im.size; scale=min(130/w,60/h); story.append(Image(io.BytesIO(blob),width=w*scale,height=h*scale,hAlign='LEFT'))
+            elif isinstance(row,tuple) and row[0]=='signature_box':
+                box=Table([[p('Authorized Signatory')]],colWidths=[150]);box.setStyle(TableStyle([('BOX',(0,0),(-1,-1),.5,colors.grey),('TOPPADDING',(0,0),(-1,-1),30)]));story.append(box)
             else: story.append(p(row))
             story.append(Spacer(1,12))
         def footer(canvas,doc):
@@ -1042,6 +1049,11 @@ def create_app(database=None, backend=None):
         policy=access(db(),session['user']); g.access=policy
         if not policy['user'] or not policy['user'].get('active') or policy['user'].get('session_version',0)!=session.get('version',0):
             session.clear(); return redirect(url_for('login'))
+        if policy['user'].get('identity_id'):
+            root=backend.database.users.find_one({'id':policy['user']['identity_id'],'active':True},session=db().mongo_session)
+            if not root or session.get('identity_id')!=root['id'] or session.get('identity_version')!=root.get('session_version',0):
+                session.clear();return redirect(url_for('login'))
+        if endpoint in ('account_page','businesses_page','delete_business'): return
         if endpoint=='subscription_page':
             if request.method=='POST' and 'subscription.manage' not in policy['permissions']: abort(403)
             if request.method=='POST' and policy['state'] in ('PENDING','REJECTED','ARCHIVED'): abort(403,'This account cannot request renewal yet.')
@@ -1083,6 +1095,13 @@ def create_app(database=None, backend=None):
             if request.form.get('active','1')=='1' and (not previous or not previous['active']): quota(db(),policy,'products')
             if not policy['features'].get('inventory') and quantity(request.form.get('stock') or '0',allow_zero=True): raise ValueError('Opening stock is unavailable while inventory is disabled by your plan.')
 
+    @app.get('/account')
+    def account_page():
+        user=g.access['user'];identity=user
+        if user.get('identity_id'): identity=backend.database.users.find_one({'id':user['identity_id']},session=db().mongo_session) or user
+        role=db().one('roles',{'id':user.get('role_id')})
+        return render_template('account.html',title='Account & subscription',identity=identity,company=g.access['company'],sub=g.access['subscription'],can_reset=bool(role and role.get('protected') and role['name']=='COMPANY_ADMIN'))
+
     @app.route('/subscription',methods=['GET','POST'])
     def subscription_page():
         platform=Platform(backend)
@@ -1110,6 +1129,7 @@ def create_app(database=None, backend=None):
                 if ident==session['user'] and (not active or not role.get('protected')): raise ValueError('Use another company administrator to change your own access.')
             if active and (not previous or not previous.get('active')): quota(db(),g.access,'users')
             import re
+            if previous and previous.get('identity_id') and (request.form.get('password') or request.form.get('email')!=previous['email']): raise ValueError('Shared login credentials must be changed in the primary business account.')
             email=request.form.get('email','').strip().lower(); name=request.form.get('name','').strip(); password=request.form.get('password','')
             if not name or not re.fullmatch(r'[^\s@]+@[^\s@]+\.[^\s@]+',email): raise ValueError('Enter a name and valid email.')
             if (not previous or password) and len(password)<12: raise ValueError('Use a password with at least 12 characters.')
@@ -1155,6 +1175,7 @@ def create_app(database=None, backend=None):
                 if request.endpoint!='register':
                     response=authorize(request.endpoint)
                     if response is not None: return response
+                if store.business_id is not None: store.closed_through=(store.one('business_settings') or {}).get('data',{}).get('closed_through')
                 return view(*args,**kwargs)
             try: return store.run_transaction(run)
             except Exception:
@@ -1168,6 +1189,8 @@ def create_app(database=None, backend=None):
     trade_permissions.update(install_accounting_reports(app,db,money,today,product_rows,pdf_document))
     from accounts import install_accounts
     trade_permissions.update(install_accounts(app,db,owned,audit,money,today))
+    from business_accounts import install_business_accounts
+    trade_permissions.update(install_business_accounts(app,db,settings,audit,today,DEFAULTS))
     from company_profile import install_profile
     trade_permissions.update(install_profile(app,db,audit,settings))
     for endpoint in trade_permissions:
@@ -1177,7 +1200,7 @@ def create_app(database=None, backend=None):
     from finance import install_finance
     install_finance(app,db,owned,audit,money,today,payment_rows,pdf_document)
 
-    for endpoint in ('finance_page','finance_receipt','register','billing_customer','billing_product','customers','products','product_photo','inventory','billing','cancel','delete_invoice','restore_invoice','payments','settings_page','dashboard','invoices','view_invoice','invoice_pdf','reports','subscription_page','company_users','company_roles','service_reminders_page','proposals','proposal_form','view_proposal','proposal_pdf'):
+    for endpoint in ('account_page','finance_page','finance_receipt','register','billing_customer','billing_product','customers','products','product_photo','inventory','billing','cancel','delete_invoice','restore_invoice','payments','settings_page','dashboard','invoices','view_invoice','invoice_pdf','reports','subscription_page','company_users','company_roles','service_reminders_page','proposals','proposal_form','view_proposal','proposal_pdf'):
         app.view_functions[endpoint]=transactional(app.view_functions[endpoint])
 
     from password_recovery import install_recovery

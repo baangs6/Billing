@@ -1,3 +1,4 @@
+from company_profile import header_fields
 """Tenant-scoped purchasing, supplier ledgers and quantity-linked purchase returns."""
 import csv
 import io
@@ -161,6 +162,7 @@ def install_trade(app,db,owned,audit,money,quantity,calculate,rounded,today,sett
             kind=text('type')
             if kind not in ('GST','NON-GST'): raise ValueError('Choose GST or Non-GST.')
             if kind=='GST' and not g.access['features'].get('gst'): abort(403)
+            if kind=='GST' and not settings().get('gstin'): raise ValueError('Register the business GSTIN before creating a GST purchase.')
             if kind=='GST' and not supplier['data'].get('state','').strip(): raise ValueError('Enter the supplier state before recording a GST purchase.')
             if not order_mode and not g.access['features'].get('inventory'): abort(403)
             pricing=text('pricing') or 'EXCLUSIVE'
@@ -264,7 +266,11 @@ def install_trade(app,db,owned,audit,money,quantity,calculate,rounded,today,sett
         if request.args.get('export'):
             if not g.access['features'].get('pdf'): abort(403)
             rows=[['Item','Quantity','Rate INR','GST %','Amount INR']]+[[i['name'],Decimal(i['quantity'])/1000,rate_text(i),i['gst'] if document['type']=='GST' else '—',Decimal(i['total'])/100] for i in document['items']]
-            return Response(pdf('Purchase order' if order_mode else 'Supplier purchase invoice',[document['snapshot']['supplier']['name'],document['supplier_number'],document['date'],'Rates '+('include GST' if document.get('pricing')=='INCLUSIVE' else 'exclude GST'),rows,'Total INR '+f"{Decimal(document['total'])/100:.2f}",document['notes']]),mimetype='application/pdf',headers={'Content-Disposition':'attachment; filename=purchase.pdf'})
+            business=document['snapshot']['business'];extra=business.get('extended',{})
+            contents=([('image',business['logo'])] if business.get('logo') else [])+[business['name'],business.get('address',''),' · '.join(str(business.get(key,'')) for key in ('state','pin','phone','email') if business.get(key)),*(['GSTIN: '+business['gstin']] if business.get('gstin') and document['type']=='GST' else []),*[label+': '+value for label,value in header_fields(business)],document['snapshot']['supplier']['name'],document['supplier_number'],document['date'],'Rates '+('include GST' if document.get('pricing')=='INCLUSIVE' else 'exclude GST'),rows,'Total INR '+f"{Decimal(document['total'])/100:.2f}",document['notes']]
+            if business.get('signature'): contents.append(('image',business['signature']))
+            elif extra.get('empty_signature_box'): contents.append(('signature_box',True))
+            return Response(pdf('Purchase order' if order_mode else 'Supplier purchase invoice',contents),mimetype='application/pdf',headers={'Content-Disposition':'attachment; filename=purchase.pdf'})
         return render_template('purchase_detail.html',title='Purchase order' if order_mode else 'Purchase details',doc=doc,orders=order_mode,payments=payments,returns=returns,submission=secrets.token_hex(32),methods=METHODS)
 
     @app.post('/parties/<party_kind>/<int:ident>/opening-payment')
@@ -313,7 +319,10 @@ def install_trade(app,db,owned,audit,money,quantity,calculate,rounded,today,sett
             name=line['name'] if sales else original_items[line['line']]['name']
             rows.append([name,f"{Decimal(line['quantity'])/1000:g}",f"{Decimal(line['taxable'])/100:.2f}",f"{Decimal(line['tax'])/100:.2f}",f"{Decimal((line['taxable']+line['tax']))/100:.2f}"])
         snapshot=original['snapshot'];party=snapshot['customer'] if sales else snapshot['supplier']
-        contents=[snapshot['business']['name'],party['name'],'Original document: '+str(original.get('number',original.get('supplier_number'))),'Note #'+str(ident)+' / '+note['date'],rows,'Round off INR '+f"{Decimal(note.get('round_off',0))/100:.2f}",'Total credit INR '+f"{Decimal(note['total'])/100:.2f}",note['reason']]
+        business=snapshot['business']
+        contents=([('image',business['logo'])] if business.get('logo') else [])+[business['name'],business.get('address',''),' · '.join(str(business.get(key,'')) for key in ('state','pin','phone','email') if business.get(key)),*(['GSTIN: '+business['gstin']] if business.get('gstin') and original['type']=='GST' else []),*[label+': '+value for label,value in header_fields(business)],party['name'],'Original document: '+str(original.get('number',original.get('supplier_number'))),'Note #'+str(ident)+' / '+note['date'],rows,'Round off INR '+f"{Decimal(note.get('round_off',0))/100:.2f}",'Total credit INR '+f"{Decimal(note['total'])/100:.2f}",note['reason']]
+        if business.get('signature'): contents.append(('image',business['signature']))
+        elif business.get('extended',{}).get('empty_signature_box'): contents.append(('signature_box',True))
         return Response(pdf('Sales credit note' if sales else 'Purchase debit note',contents),mimetype='application/pdf',headers={'Content-Disposition':f'attachment; filename=note-{ident}.pdf'})
 
     @app.post('/documents/<int:ident>/dispatch')

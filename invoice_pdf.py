@@ -9,6 +9,7 @@ from reportlab.lib.styles import ParagraphStyle
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image, KeepTogether
 from PIL import Image as PILImage
 from product_units import rate_text
+from company_profile import header_fields
 
 def build_invoice_pdf(inv,proposal=False):
     if not proposal:
@@ -34,6 +35,7 @@ def build_invoice_pdf(inv,proposal=False):
     customer_gstin=f"\nGSTIN: {c['data']['gstin'] or '-'}" if gst else ''
     title={'QUOTATION':'PROPOSAL / QUOTATION','PROFORMA':'PROFORMA INVOICE','CHALLAN':'DELIVERY CHALLAN'}.get(inv.get('document_kind','QUOTATION'),'PROPOSAL / QUOTATION') if proposal else 'TAX INVOICE' if inv['type']=='GST' else 'BILL OF SUPPLY'
     business=[p(b['name'],heading),Spacer(1,5),p(f"{b['address']}\n{b['state']} {b['pin']}\nPhone: {b['phone']} | {b['email']}{seller_gstin}")]
+    business.extend([p(label+': '+value) for label,value in header_fields(b)])
     if b['logo']: header=table([[image(b['logo']),business,p(title,right)]],[85,width-210,125])
     else: header=table([[business,p(title,right)]],[width-125,125])
     header.setStyle(TableStyle([('LINEBELOW',(0,0),(-1,-1),1.4,green)])); story.extend([header,Spacer(1,14)])
@@ -62,6 +64,8 @@ def build_invoice_pdf(inv,proposal=False):
     signature=[]
     if b['signature']:
         img=image(b['signature'],130,60); img.hAlign='RIGHT'; signature.extend([img,Spacer(1,8)])
+    elif b.get('extended',{}).get('empty_signature_box'):
+        box=table([[p('Authorized Signatory')]], [130]);box.setStyle(TableStyle([('BOX',(0,0),(-1,-1),.5,line),('TOPPADDING',(0,0),(-1,-1),25)]));signature.append(box)
     else: signature.append(Spacer(1,35))
     signature.append(p(f"{b['signatory']}\nAuthorised Signatory\nFor {b['name']}",right))
     footer_table=table([[notes,signature]],[width*.6,width*.4]); footer_table.setStyle(TableStyle([('LINEABOVE',(0,0),(-1,0),.5,line)])); story.append(footer_table)
