@@ -18,3 +18,19 @@ if (workspaceNavigation) {
     }
   });
 }
+
+const recordTables = document.querySelectorAll('.table-wrap, .stitch-audit-table-wrap');
+const updateTableScrolling = () => recordTables.forEach(container => {
+  const scrollable = container.scrollWidth > container.clientWidth + 1;
+  container.dataset.scrollable = String(scrollable);
+  container.tabIndex = scrollable ? 0 : -1;
+  if (scrollable) {
+    container.setAttribute('role', 'region');
+    container.setAttribute('aria-label', 'Scrollable records — swipe or use arrow keys to see all columns');
+  } else {
+    container.removeAttribute('role');
+    container.removeAttribute('aria-label');
+  }
+});
+updateTableScrolling();
+window.addEventListener('resize', updateTableScrolling);

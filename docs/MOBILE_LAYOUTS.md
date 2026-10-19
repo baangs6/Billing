@@ -1,0 +1,11 @@
+# Responsive website completion — 19 October 2026
+
+The company and owner base templates load one shared responsive stylesheet. Billing retains its page-specific desktop/mobile design. The public homepage keeps its existing responsive layout.
+
+Changes: dashboard/customer/finance metrics reflow; tablet top bars and invoice actions wrap; customer edit controls fit narrow screens; company and owner navigation collapse on phones with Escape/focus support; fields use 16px text and 44px touch controls; popups remain within the viewport with internal scrolling; wide tables show swipe guidance and support keyboard scrolling; invoice totals/addresses and branding uploads fit narrow screens. Login, registration and recovery put the form before promotional content at phone/tablet widths. No business feature or data calculation was removed.
+
+Browser checks used disposable company and owner databases. Forty company views (dashboard; customer directory/profile/edit; products; stock; invoices/detail; payments/edit; service reminders; proposals/create/edit/detail; suppliers/edit/ledgers; purchasing/orders/details; returns; imports; finance/edit; accounts; reports; settings/profile; account/business switch; users/roles; subscription; billing/edit) were checked at confirmed 320px, 390px and 820px widths. All final checks showed no page-wide horizontal overflow. Eleven owner page variants were checked at 320px and 820px. Public login, registration, recovery and home fit at 320px; tablet registration also fits with its form first. The original repeat runs at an unchanged viewport were discarded and rerun using dedicated tabs with measured innerWidth.
+
+Actual interactions verified owner menu open/Escape, company sign-out, quick-customer popup scrolling/16px fields, and arrow-key scrolling of a wide owner table. The temporary viewport overrides and review databases are cleaned after testing.
+
+Checks: node --test tests/mobile_navigation.test.cjs passed 2 tests; selected Python page/export, owner-auth-separation and billing print tests passed 3 tests in 97.94 seconds. JavaScript syntax and diff whitespace checks passed. Printed/PDF layouts and database schemas are unchanged. Physical phones, virtual keyboard behavior and Safari/Firefox were not tested.

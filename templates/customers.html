@@ -232,7 +232,7 @@
       <label>Opening balance INR<input name="opening_balance" type="number" min="0" step="0.01" value="{{ edit.data.get('opening_balance',0)|abs/100 if edit else 0 }}"></label><label>Opening balance direction<select name="opening_direction"><option value="COLLECT">To collect</option><option value="PAY" {{ 'selected' if edit and edit.data.get('opening_balance',0)<0 else '' }}>To pay</option></select></label></div></section>
 {% endif %}
       <!-- Action Button Bar -->
-      <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 14px; padding: 16px 20px; display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 30px; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);">
+      <div class="customer-save-actions" style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 14px; padding: 16px 20px; display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 30px; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);">
         <a href="/customers" style="display: inline-flex; align-items: center; gap: 6px; padding: 9px 18px; border-radius: 10px; font-size: 13px; font-weight: 500; color: #475569; background: #f1f5f9; text-decoration: none;">
           {{ 'Cancel edit' if edit else 'Cancel' }}
         </a>

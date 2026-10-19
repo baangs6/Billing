@@ -58,3 +58,10 @@ Company port 5000 was refreshed and the preserved preview on 5002 started withou
 
 
 Invoice optional totals (2026-10-19): HTML and all six sales PDF formats hide zero/missing credit notes, refunded and round-off rows; nonzero values including negative rounding remain visible. Billing preview also omits a zero round-off total. Selected HTML/PDF tests passed 27 cases in 23.80 seconds. No calculations or stored financial records changed.
+
+
+## Complete mobile layout follow-up (2026-10-19)
+
+Shared company/owner responsive styles, owner mobile navigation and table-scrolling guidance added. See MOBILE_LAYOUTS.md for the page inventory and measured phone/tablet audits. Two navigation/table tests and three page/export/auth/printing tests passed. No financial records were posted or reset for this layout change; all visual data was disposable. No GitHub push or Render deployment is included.
+
+Final activation: company, owner and preserved-preview login endpoints returned HTTP 200 and serve the shared responsive stylesheet. All 24 checked operational collections in each company/preview database retained equal fingerprints across service refresh. QA databases were cleaned; temporary browser tabs/viewport overrides were removed.

@@ -1,0 +1,84 @@
+/* Shared screen layouts; invoice printing and desktop dimensions stay separate. */
+@media screen and (max-width:1024px){
+ .stitch-kpi-grid,.metric-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .stitch-dashboard-bento{grid-template-columns:minmax(0,1fr)}
+ .stitch-kpi-grid>*,.stitch-dashboard-bento>*,.stitch-profile-grid>*,.split-layout>*,.detail-grid>*{min-width:0}
+ .topbar{height:auto;min-height:64px;flex-wrap:wrap;gap:12px;padding:12px 18px}
+ .topbar-breadcrumb{width:100%;min-width:0}
+ .topbar .global-search{flex:1 1 100%;order:3;min-width:0;width:100%;max-width:none}
+ .topbar>div:last-child{margin-left:0!important;max-width:100%;flex-wrap:wrap}
+ .toolbar,.invoice-controls,.panel-heading,.filter-bar{flex-wrap:wrap}
+ .auth-experience,.auth-experience.join-experience{display:flex;flex-direction:column}
+ .auth-card{order:-1}
+}
+@media screen and (max-width:768px){
+ main,.content,.commerce-page,form,.panel,.stitch-profile-card,.stitch-cust-table-card{min-width:0}
+ .content{width:100%;box-sizing:border-box}
+ .page-heading{padding:20px;align-items:flex-start}
+ .page-heading>div:first-child:not(.toolbar){min-width:0;width:100%}
+ .page-heading h1{font-size:26px;line-height:1.25}
+ .page-heading p,.alert,.hint,.preserve,.stitch-profile-meta-val{overflow-wrap:anywhere}
+ .page-heading>.toolbar{width:100%;justify-content:flex-start;margin-left:0}
+ .toolbar,.invoice-controls,.panel-heading,.filter-bar,.stitch-cust-toolbar,.stitch-cust-actions,.stitch-settings-card-header,.stitch-chart-header,.revenue-panel{flex-wrap:wrap;gap:12px}
+ .toolbar>*,.invoice-controls>*,.panel-heading>*,.filter-bar>*,.stitch-settings-card-header>*{min-width:0;max-width:100%;box-sizing:border-box}
+ .toolbar .primary,.toolbar .secondary,.invoice-controls .primary,.invoice-controls .secondary{white-space:normal;text-align:center;justify-content:center}
+ .invoice-controls{align-items:center}
+ .topbar .admin-top-approval{margin-left:0}
+ .topbar .global-search input{width:100%;min-width:0}
+ .topbar .global-search kbd,.topbar .global-search .search-shortcut{display:none}
+ .form-grid,.form-grid.two,.form-grid.three,.form-grid.four,.detail-grid,.stitch-onboarding-grid,.stitch-profile-grid{grid-template-columns:minmax(0,1fr)}
+ .stitch-onboarding-grid>*,.stitch-onboarding-grid .stitch-step-card,.stitch-preview-card{min-width:0}
+ .customer-save-actions{flex-wrap:wrap}
+ .form-grid .full{grid-column:1/-1}
+ input:not([type=checkbox]):not([type=radio]):not([type=hidden]),select,textarea{font-size:16px!important;min-height:44px;max-width:100%;box-sizing:border-box}
+ input[type=file]{white-space:normal;min-width:0;width:100%}
+ button,.primary,.secondary,summary.secondary{min-height:44px}
+ input[type=checkbox],input[type=radio]{min-width:18px;min-height:18px;flex-shrink:0}
+ .checkbox{line-height:1.5}
+ .table-wrap,.stitch-audit-table-wrap{max-width:100%;min-width:0;overflow-x:auto;overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch}
+ .table-wrap[data-scrollable=true]::before,.stitch-audit-table-wrap[data-scrollable=true]::before{content:'Swipe to see more columns →';display:block;position:sticky;left:0;padding:10px 12px;font-size:11px;color:var(--muted,#64748b);background:var(--surface,#fff)}
+ .table-wrap:focus-visible,.stitch-audit-table-wrap:focus-visible{outline:2px solid var(--primary,#2563eb);outline-offset:2px}
+ .table-wrap td .primary,.table-wrap td .secondary,.table-wrap td .text-button,.table-wrap td a[title]{min-width:44px;min-height:44px!important;box-sizing:border-box}
+ .table-wrap td a{display:inline-flex;align-items:center;min-height:44px}
+ dialog{width:calc(100vw - 24px);max-width:560px;max-height:calc(100dvh - 24px);padding:16px;box-sizing:border-box;overflow:auto;overscroll-behavior:contain}
+ dialog .padded{padding:16px 0}
+ dialog .panel-heading{padding:0 0 16px;align-items:flex-start}
+ dialog h2{font-size:20px}
+ dialog .panel-heading button{flex-shrink:0}
+ .stitch-kpi-top,.stitch-kpi-sub{flex-wrap:wrap;gap:8px}
+ .stitch-kpi-card{padding:18px;overflow-wrap:anywhere}
+ .stitch-kpi-val{font-size:24px}
+ .stitch-chart-card,.stitch-profile-card,.stitch-profile-hero{padding:18px}
+ .stitch-chart-legend{flex-wrap:wrap;gap:10px}
+ .stitch-profile-hero-left{min-width:0;align-items:flex-start;gap:12px}
+ .stitch-profile-hero-left>div{min-width:0;overflow-wrap:anywhere}
+ .stitch-profile-meta-row{min-width:0}
+ .stitch-settings-card{min-width:0}
+ .stitch-settings-card-header,.stitch-settings-card-body{padding:18px}
+ .stitch-settings-card-title{flex-wrap:wrap}
+ .stitch-settings-meta-badge{white-space:normal}
+ .stitch-settings-callout{align-items:flex-start;overflow-wrap:anywhere}
+ .stitch-asset-header,.stitch-asset-body,.stitch-asset-actions{min-width:0;flex-wrap:wrap}
+ .invoice-paper{padding:18px;min-width:0;overflow-wrap:anywhere}
+ .invoice-header,.invoice-parties{flex-wrap:wrap;gap:16px}
+ .invoice-header>div,.invoice-parties>div{min-width:0;flex-basis:100%}
+ .invoice-header h2{font-size:22px}
+ .invoice-totals{width:100%;max-width:320px}
+ .invoice-footer{grid-template-columns:minmax(0,1fr);gap:20px}
+ .invoice-totals .summary-line{gap:12px}
+ .auth-main .content{padding:0}
+ .auth-experience{min-width:0;display:flex;flex-direction:column}
+ .auth-card{order:-1;min-width:0;max-width:100%;padding:28px 22px;box-sizing:border-box}
+ .auth-story{padding:24px 22px}
+ .section-tabs a,.status-tabs a{min-height:44px;display:inline-flex;align-items:center;box-sizing:border-box}
+ .admin-theme .mobile-menu-toggle{background:#0f172a;color:#fff}
+}
+@media screen and (max-width:480px){
+ .stitch-kpi-grid,.metric-grid{grid-template-columns:minmax(0,1fr)}
+ .stitch-proposals-hero{padding:18px}
+ .stitch-hero-metrics{flex-wrap:wrap;gap:16px}
+ .stitch-cust-search-wrap{width:100%;min-width:0}
+ .stitch-cust-toolbar>*{max-width:100%}
+ .stitch-profile-avatar-lg{width:44px;height:44px;font-size:18px}
+ .auth-card{padding:24px 18px}
+}
