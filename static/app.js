@@ -53,7 +53,7 @@ if(dataElement){
   if(walkIn?.checked&&!form.elements.id.value){document.querySelector('#received').value=(total/100).toFixed(2);document.querySelector('#received').readOnly=true;}else if(!form.elements.id.value){document.querySelector('#received').readOnly=false;}
   const values=[['Subtotal',subtotal-chargeAmount],...(common?[['Additional charges',chargeAmount]]:[]),['Discount',discount],[gst?'Taxable amount':'Total amount',subtotal-discount],...(gst?(interstate?[['IGST',igst]]:[['CGST',cgst],['SGST',sgst]]):[]),...(round?[['Round off',adjustment]]:[]),['Grand total',total]];
   const container=document.querySelector('#calculation');container.replaceChildren();
-  values.forEach(([label,value])=>{const div=document.createElement('div');div.className='summary-line'+(label==='Grand total'?' grand':'');const a=document.createElement('span'),b=document.createElement('strong');a.textContent=label;b.textContent=fmt(value);div.append(a,b);container.append(div)});
+  values.filter(([label,value])=>label!=='Round off'||value!==0).forEach(([label,value])=>{const div=document.createElement('div');div.className='summary-line'+(label==='Grand total'?' grand':'');const a=document.createElement('span'),b=document.createElement('strong');a.textContent=label;b.textContent=fmt(value);div.append(a,b);container.append(div)});
   document.querySelector('#balance').textContent=fmt(total-paise(document.querySelector('#received').value));
   const mobileTotal=document.querySelector('#mobile-invoice-total');if(mobileTotal)mobileTotal.textContent=fmt(total);
   const count=document.querySelector('#billing-item-count');if(count)count.textContent=items.filter(item=>!item.is_charge).length;

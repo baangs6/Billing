@@ -165,6 +165,11 @@ def test_invoice_template_accepts_legacy_optional_totals(workspace):
         session.update(credentials);g.access=access(backend.scope(1),session['user'])
         html=render_template('invoice.html',title='Legacy invoice',inv=inv,filename='Customer.pdf')
         assert 'Desk lamp' in html and 'Grand total' in html
+        for amount in (0,-49):
+            inv.update(credit=abs(amount),refunded=abs(amount),round_off=amount)
+            html=render_template('invoice.html',title='Invoice',inv=inv,filename='Customer.pdf')
+            for label in ('Credit notes','Refunded','Round off'):
+                assert (('<span>'+label+'</span>') in html)==bool(amount)
 
 
 def test_unprepared_schema_preserves_existing_pages_and_hides_new_controls(workspace):

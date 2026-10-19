@@ -55,3 +55,6 @@ Adapted the desktop/mobile references from stitch_modern_responsive_mobile_redes
 Seven billing workflow/options regression tests passed in 56.20 seconds. Isolated browser checks at 1280px and 390px verified desktop table width fits its container, no page-wide horizontal overflow, editable mobile fields and a fixed mobile save total. Changing sample quantity from 2 to 3 updated the total to INR 354 and saved successfully with the existing INR 50 payment preserved. The temporary QA database was cleaned. Browser viewport override was reset. JavaScript syntax and diff whitespace checks passed.
 
 Company port 5000 was refreshed and the preserved preview on 5002 started without reseeding. All 24 checked operational collections in both databases retained equal fingerprints. Company login, new billing CSS and owner login returned HTTP 200. The sample preview is open on the updated editor. No physical mobile device or browser-engine matrix was tested; no GitHub push or Render deployment occurred.
+
+
+Invoice optional totals (2026-10-19): HTML and all six sales PDF formats hide zero/missing credit notes, refunded and round-off rows; nonzero values including negative rounding remain visible. Billing preview also omits a zero round-off total. Selected HTML/PDF tests passed 27 cases in 23.80 seconds. No calculations or stored financial records changed.

@@ -146,7 +146,7 @@
 
   <div class="invoice-totals">
     {% for label, key in [('Subtotal','subtotal'),('Discount','discount'),('Taxable amount' if inv.type=='GST' else 'Total amount','taxable'),('CGST','cgst'),('SGST','sgst'),('IGST','igst'),('Credit notes','credit'),('Refunded','refunded'),('Round off','round_off'),('Grand total','total'),('Received','received'),('Balance due','balance')] %}
-      {% if (key not in ['round_off','credit','refunded'] or key in inv) and (key not in ['cgst','sgst','igst'] or inv[key]) %}
+      {% if key not in ['round_off','credit','refunded','cgst','sgst','igst'] or inv.get(key,0) %}
         <div class="summary-line {{ 'grand' if key == 'total' else '' }}">
           <span>{{ label }}</span>
           <strong>{{ inv[key]|inr }}</strong>

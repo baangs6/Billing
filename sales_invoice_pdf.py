@@ -85,7 +85,7 @@ def build_sales_invoice_pdf(inv):
         for label,key in [('Taxable amount','taxable'),('CGST','cgst'),('SGST','sgst'),('IGST','igst')]:
             if key!='taxable' and not inv[key]: continue
             rows.append([p(''),p(label,right)]+[p('') for _ in headings[2:-1]]+[p(money(inv[key]),right)])
-    if 'round_off' in inv:
+    if inv.get('round_off'):
         rows.append([p(''),p('Round off',right)]+[p('') for _ in headings[2:-1]]+[p(money(inv['round_off']),right)])
     quantity=Decimal(sum(item['quantity'] for item in products))/1000
     rows.append([p(''),p('TOTAL' if gst else 'Total amount',bold),p(f'{quantity:g}',center),p('')]+([p('')] if columns_gst else [])+[p(money(inv['total']),bold)])
@@ -157,7 +157,7 @@ def build_thermal_pdf(inv,theme):
         if gst and preferences.get('show_gst_columns',True): label+=f"\nGST {item['gst']}%: {amount(item['tax'])}"
         rows.append([p(label),p(amount(item['total']))])
     for label,key in [('Discount','discount'),('CGST','cgst'),('SGST','sgst'),('IGST','igst'),('Round off','round_off'),('Total','total'),('Credit notes','credit'),('Refunded','refunded'),('Received','received'),('Balance','balance')]:
-        if key in inv and (key not in ('cgst','sgst','igst') or inv[key]): rows.append([p(label,key=='total'),p(amount(inv[key]),key=='total')])
+        if key in inv and (key not in ('cgst','sgst','igst','round_off','credit','refunded') or inv[key]): rows.append([p(label,key=='total'),p(amount(inv[key]),key=='total')])
     table=Table(rows,colWidths=[usable*.62,usable*.38],repeatRows=1,hAlign='LEFT',splitInRow=1)
     table.setStyle(TableStyle([('VALIGN',(0,0),(-1,-1),'TOP'),('LEFTPADDING',(0,0),(-1,-1),1),('RIGHTPADDING',(0,0),(-1,-1),1),('LINEBELOW',(0,0),(-1,0),.5,colors.black)]))
     if layout=='CLASSIC': table.setStyle(TableStyle([('BOX',(0,0),(-1,-1),.5,colors.black)]))

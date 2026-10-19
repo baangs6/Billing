@@ -38,3 +38,14 @@ def test_custom_headers_and_uploaded_identity_images(theme):
         assert '555-0123' in ''.join(page.get_text() for page in document)
         assert any(page.get_images() for page in document)
     assert inv==before
+
+
+@pytest.mark.parametrize('theme',['A5','A4_CLASSIC','A4_SIMPLE','A4_ADVANCED','THERMAL_58','THERMAL_80'])
+@pytest.mark.parametrize('amount',[0,-49])
+def test_optional_totals_hide_zero_and_keep_nonzero(theme,amount):
+    inv=sample_invoice(theme)
+    inv.update(round_off=amount,credit=abs(amount),refunded=abs(amount))
+    with pymupdf.open(stream=build_sales_invoice_pdf(inv),filetype='pdf') as document:
+        text=''.join(page.get_text() for page in document)
+        for label in ('Round off','Credit notes','Refunded'):
+            assert (label in text)==bool(amount),(theme,label,text)
