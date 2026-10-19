@@ -46,3 +46,12 @@ Two fresh-context focused reviewers found shared identity preservation and futur
 Isolated browser QA on port 5003 verified multi-select saving, dynamic custom header addition, Account, Your businesses, financial-year and deletion confirmation forms; its temporary database was cleaned. No real destructive workflow was submitted. Synthetic logo/signature/header PDFs rendered in all six formats; A5 and 58mm were visually inspected. JavaScript syntax, Python compilation and diff whitespace checks passed. Physical printer calibration remains unverified.
 
 Local company and preserved preview services were refreshed. Both login endpoints returned HTTP 200, the new profile screen loaded in the preserved preview, and fingerprints of all 24 checked operational collections in each database remained equal before/after refresh. No database migration or historical backfill was required. No GitHub push or Render deployment occurred.
+
+
+## Supplied billing design follow-up (2026-10-19)
+
+Adapted the desktop/mobile references from stitch_modern_responsive_mobile_redesign.zip into the existing billing form. Page-scoped static/billing.css provides the split desktop workflow/summary, blue input surfaces, compact table and mobile item cards/save bar. Existing form names, IDs, permission checks, quick-add dialogs, calculations and server endpoints remain intact. The reference's unimplemented draft/outbound/QR-upload placeholder actions were not added as fake controls.
+
+Seven billing workflow/options regression tests passed in 56.20 seconds. Isolated browser checks at 1280px and 390px verified desktop table width fits its container, no page-wide horizontal overflow, editable mobile fields and a fixed mobile save total. Changing sample quantity from 2 to 3 updated the total to INR 354 and saved successfully with the existing INR 50 payment preserved. The temporary QA database was cleaned. Browser viewport override was reset. JavaScript syntax and diff whitespace checks passed.
+
+Company port 5000 was refreshed and the preserved preview on 5002 started without reseeding. All 24 checked operational collections in both databases retained equal fingerprints. Company login, new billing CSS and owner login returned HTTP 200. The sample preview is open on the updated editor. No physical mobile device or browser-engine matrix was tested; no GitHub push or Render deployment occurred.

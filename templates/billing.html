@@ -1,4 +1,6 @@
 {% extends 'base.html' %}
+{% block page_styles %}<link rel="stylesheet" href="{{ url_for('static',filename='billing.css') }}">{% endblock %}
+{% block actions %}<div class="toolbar billing-command-actions"><a class="secondary" href="/invoices">View invoices</a><button type="submit" form="billing-form" class="primary">{{ 'Save changes' if edit and not duplicate else 'Save invoice' }} →</button></div>{% endblock %}
 
 {% block subtitle %}From customer to invoice in just a few steps.{% if 'customer.manage' in policy.permissions %}
   <dialog id="customer-popup" aria-labelledby="customer-popup-title">
@@ -165,7 +167,7 @@
     <div class="stitch-step-header">
       <div>
         <span class="stitch-step-eyebrow">STEP 02</span>
-        <h2 class="stitch-step-title">Invoice items</h2>
+        <h2 class="stitch-step-title">Invoice items <span id="billing-item-count" class="billing-count">0</span></h2>
       </div>
       <div class="billing-item-actions"><button type="button" id="manual-item" class="secondary" style="display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; font-size: 12.5px; font-weight: 500; border-radius: 8px;">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 4v16m8-8H4"/></svg>
@@ -235,9 +237,9 @@
           <h2 class="stitch-step-title">Payment &amp; notes</h2>
         </div>
       </div>
-      <div style="padding: 20px 24px; display: flex; flex-direction: column; gap: 18px;">
+      <div class="billing-payment-body">
         <!-- Received amount and Payment Method -->
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px;">
+        <div class="billing-payment-grid">
           <div class="stitch-field">
             <label class="stitch-label" for="received">Received amount ₹</label>
             <input type="number" name="received" id="received" class="stitch-input" min="0" step="0.01" value="{{ edit.received / 100 if edit and not duplicate else 0 }}" {{ 'readonly' if edit and not duplicate else '' }}>
@@ -273,7 +275,7 @@
 
     <!-- Right Column: Sticky Invoice Summary Card -->
     <div class="stitch-summary-card" data-purpose="invoice-summary-card">
-      <h3 class="stitch-summary-header">Invoice summary</h3>
+      <h3 class="stitch-summary-header"><span class="billing-summary-symbol" aria-hidden="true">▤</span> Invoice summary</h3>
       {% if trade_ready %}<label>PO number<input name="po_number" value="{{ edit.snapshot.get('po_number','') if edit else '' }}"></label><label>E-way bill number<input name="eway_bill" inputmode="numeric" pattern="[0-9]{12}" maxlength="12" value="{{ edit.snapshot.get('eway_bill','') if edit else '' }}"><small>Record an existing number; this does not generate an e-way bill.</small></label><label>Vehicle number<input name="vehicle_number" value="{{ edit.snapshot.get('vehicle_number','') if edit else '' }}"></label>{% endif %}<div class="summary-options">
         <details {{ 'open' if edit and edit.discount else '' }}><summary class="secondary">＋ Discount</summary><label for="common-discount">Common discount amount ₹</label><input id="common-discount" name="common_discount" type="number" min="0" step="0.01" value="{{ edit.discount/100 if edit else 0 }}"><small>Before GST, across items. Additional charges are excluded.</small></details>
         <button type="button" id="additional-charge" class="secondary">＋ Additional charge</button>
@@ -301,5 +303,6 @@
     </div>
   </div>
   <!-- END: Lower Split Layout -->
+  <div class="billing-mobile-save"><div><span>Invoice total</span><strong id="mobile-invoice-total">₹0.00</strong></div><button class="primary" type="submit">{{ 'Save changes' if edit and not duplicate else 'Generate invoice' }} →</button></div>
 </form>
 {% endblock %}

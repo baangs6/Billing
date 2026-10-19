@@ -1,0 +1,125 @@
+/* Invoice workspace adapted from the supplied desktop and mobile references. */
+.billing-workspace{background:#f8f9ff;color:#0b1c30}
+.billing-workspace .content{max-width:1600px;margin:auto}
+.billing-workspace .sidebar{background:#eff4ff}
+.billing-workspace .page-heading{margin-bottom:24px}
+.billing-workspace .page-heading h1{font-size:28px;letter-spacing:-.035em}
+.billing-workspace .page-heading p{font-size:13px;color:#565e74}
+.billing-workspace .page-heading{background:transparent;border:0;box-shadow:none;padding:0}
+.billing-command-actions{display:flex;gap:8px;align-items:center}
+.billing-command-actions .primary,.billing-command-actions .secondary{border-radius:6px;padding:9px 14px;font-size:13px}
+#billing-form{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:22px;align-items:start}
+#billing-form>.stitch-step-card{grid-column:1}
+#billing-form .stitch-billing-lower{display:contents}
+#billing-form [data-purpose=payment-and-notes-step]{grid-column:1}
+#billing-form .stitch-summary-card{grid-column:2;grid-row:1/span 3;position:sticky;top:82px;padding:22px;min-width:0}
+#billing-form .stitch-step-card{margin:0;padding:0;border:0;border-radius:10px;box-shadow:0 2px 8px #0b1c3009;overflow:visible;min-width:0}
+#billing-form .stitch-step-header{margin:0;padding:22px 24px 16px;border:0;gap:12px;flex-wrap:wrap}
+#billing-form .stitch-step-header>div:first-child{display:flex;align-items:center;gap:10px}
+#billing-form .stitch-step-eyebrow{margin:0;padding:4px 8px;background:#e5eeff;color:#0053db;letter-spacing:.03em;border-radius:3px;white-space:nowrap}
+#billing-form .stitch-step-title{font-size:14px;color:#0b1c30;line-height:1.5}
+#billing-form .stitch-field-grid{grid-template-columns:repeat(4,minmax(0,1fr));gap:18px 14px;padding:10px 24px 24px}
+#billing-form .customer-lookup{grid-column:span 2}
+#billing-form .stitch-field:has(#invoice-type){grid-column:span 2}
+#billing-form #customer-info{display:flex!important;flex-wrap:wrap;gap:2px 10px;line-height:1.5;margin-top:4px}
+#billing-form .stitch-field{min-width:0}
+#billing-form .stitch-label{font-size:12px;font-weight:600;gap:5px;flex-wrap:wrap;flex-direction:row;text-align:left;justify-content:flex-start}
+#billing-form input:not([type=checkbox]):not([type=hidden]),#billing-form select,#billing-form textarea{background:#eff4ff;border:1px solid transparent;border-radius:5px;color:#0b1c30;max-width:100%;min-width:0;font-size:13px;box-sizing:border-box}
+#billing-form input:not([type=checkbox]):not([type=hidden]),#billing-form select{min-height:38px}
+#billing-form input:focus,#billing-form select:focus,#billing-form textarea:focus{background:#fff;border-color:#2563eb;outline:2px solid #2563eb22;outline-offset:1px}
+#billing-form input:disabled,#billing-form select:disabled{opacity:.6}
+#billing-form small,#billing-form .stitch-field-help{font-size:11px;color:#565e74;line-height:1.5}
+#billing-form .checkbox{font-size:11px;line-height:1.6}
+#billing-form .checkbox input{accent-color:#2563eb;flex-shrink:0}
+#billing-form .stitch-info-card{background:#eff4ff;border:0;color:#565e74;font-size:11px;padding:10px 12px;grid-column:1/-1}
+#billing-form .stitch-info-card{height:auto;min-height:38px}
+#billing-form .stitch-picker-toolbar{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.35fr) 105px;padding:14px 20px;gap:10px;background:#f8f9ff;margin:0 20px 16px;border-radius:6px}
+#billing-form .stitch-picker-toolbar .stitch-label{font-size:11px}
+#billing-form .stitch-picker-toolbar input{background:#fff}
+#billing-form .table-wrap{margin:0 20px;max-width:calc(100% - 40px);overflow-x:auto}
+#billing-form .billing-table{table-layout:fixed;min-width:550px;width:100%;margin:0}
+#billing-form .billing-table th{background:#eff4ff;font-size:10px;letter-spacing:.025em;padding:10px 8px}
+#billing-form .billing-table td{padding:14px 8px;vertical-align:top}
+#billing-form .billing-table th:first-child{width:160px!important;min-width:0!important}
+#billing-form .billing-table td:first-child{min-width:0}
+#billing-form .billing-table th:nth-child(2){width:60px!important}
+#billing-form .billing-table th:nth-child(3),#billing-form .billing-table th:nth-child(4){width:70px!important}
+#billing-form .billing-table th:nth-child(5){width:60px!important}
+#billing-form .billing-table th:nth-child(6){width:90px!important}
+#billing-form .billing-table th:last-child{width:26px!important}
+#billing-form .billing-table td input{width:100%;font-size:12px;padding:5px 6px;min-width:0}
+#billing-form .billing-table td:first-child input[data-field=name]{font-weight:600;font-family:inherit}
+#billing-form .billing-table td:first-child input[data-field=hsn]{font-size:11px;background:#f8f9ff}
+#billing-form .billing-table .row-total{font-size:12px;padding-top:24px}
+#billing-form .billing-table .text-button{padding:8px 0;min-width:20px}
+#billing-form .billing-item-details label{font-size:10px}
+#billing-form .billing-count{display:inline-flex;align-items:center;justify-content:center;min-width:22px;height:22px;background:#eff4ff;color:#0053db;border-radius:5px;font-size:11px;margin-left:4px}
+#billing-form .stitch-empty-placeholder{padding:38px 20px 46px}
+#billing-form .stitch-empty-icon{background:#eff4ff;color:#0053db}
+#billing-form .stitch-summary-card{border:0;box-shadow:0 2px 8px #0b1c3009;border-radius:10px}
+#billing-form .stitch-summary-header{display:flex;align-items:center;gap:8px;font-size:15px;padding-bottom:16px;margin:0 0 18px}
+.billing-summary-symbol{color:#2563eb;font-size:20px}
+#billing-form .stitch-summary-card>label{font-size:10px;text-transform:uppercase;letter-spacing:.04em;margin-bottom:12px;color:#565e74}
+#billing-form .stitch-summary-card>label input{font-size:12px;margin-top:5px;background:#eff4ff;text-transform:none;letter-spacing:normal}
+#billing-form .stitch-summary-card small{text-transform:none;letter-spacing:normal}
+#billing-form .summary-options{gap:12px;margin:18px 0}
+#billing-form .summary-options .secondary,#billing-form .billing-print-options summary{background:#e5eeff;border:0;color:#0053db;font-size:12px;border-radius:5px;padding:9px 12px}
+#billing-form .summary-options details label{font-size:12px;margin-top:10px}
+#billing-form .summary-line{padding:6px 0}
+#billing-form .summary-line.grand{background:#eff4ff;padding:14px 10px;border:0;border-radius:5px;gap:8px}
+#billing-form .summary-line.grand strong{font-size:20px;font-variant-numeric:tabular-nums}
+#billing-form .stitch-summary-balance{padding:12px 0 18px}
+#billing-form .stitch-summary-balance strong{color:#ba1a1a;font-variant-numeric:tabular-nums}
+#billing-form .stitch-save-btn{background:#2563eb;height:44px;border-radius:5px}
+#billing-form .stitch-save-microcopy{color:#565e74;line-height:1.6}
+#billing-form .billing-payment-body{padding:10px 24px 24px;display:grid;gap:18px}
+#billing-form .billing-payment-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+#billing-form .customer-results,#billing-form .catalogue-results{z-index:30;background:#fff}
+#billing-form [hidden]{display:none!important}
+.billing-mobile-save{display:none}
+@media(min-width:1600px){#billing-form{grid-template-columns:minmax(0,1fr) 360px;gap:28px}#billing-form .billing-table{min-width:700px}}
+@media(max-width:1179px){
+ #billing-form{grid-template-columns:minmax(0,1fr)}
+ #billing-form .stitch-summary-card{grid-column:1;grid-row:auto;position:static}
+ #billing-form .stitch-field-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
+ #billing-form .stitch-field:has(#invoice-type){grid-column:auto}
+}
+@media(max-width:640px){
+ .billing-workspace .content{padding:20px 12px 112px}
+ .billing-workspace .page-heading h1{font-size:24px}
+ .billing-workspace .page-heading p{font-size:12px}
+ .billing-command-actions{display:none}
+ #billing-form{gap:16px}
+ #billing-form .stitch-step-header{padding:18px 16px 12px;gap:12px}
+ #billing-form .stitch-step-header>div:first-child{gap:8px}
+ #billing-form .stitch-step-eyebrow{font-size:9px}
+ #billing-form .stitch-step-title{font-size:14px}
+ #billing-form .stitch-field-grid{grid-template-columns:repeat(2,minmax(0,1fr));padding:8px 16px 20px;gap:16px 12px}
+ #billing-form .customer-lookup{grid-column:1/-1}
+ #billing-form input:not([type=checkbox]):not([type=hidden]),#billing-form select,#billing-form textarea{font-size:16px;min-height:44px}
+ #billing-form .stitch-picker-toolbar{grid-template-columns:minmax(0,1fr);margin:0 12px 8px;padding:12px}
+ #billing-form .stitch-picker-toolbar button{min-height:44px}
+ #billing-form .table-wrap{overflow:visible;margin:0 16px;max-width:calc(100% - 32px)}
+ #billing-form .billing-table,#billing-form .billing-table tbody{display:block;min-width:0;width:100%}
+ #billing-form .billing-table thead{display:none}
+ #billing-form .billing-table tbody tr{position:relative;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;border-top:1px solid #e5eeff;padding:18px 0}
+ #billing-form .billing-table td{display:block;padding:0;border:0;width:auto;min-width:0;text-align:left}
+ #billing-form .billing-table td::before{content:attr(data-label);display:block;color:#565e74;font-size:11px;margin-bottom:5px;font-weight:500}
+ #billing-form .billing-table td:first-child{grid-column:1/-1;padding-right:32px}
+ #billing-form .billing-table td:first-child::before,#billing-form .billing-table td:last-child::before{display:none}
+ #billing-form .billing-table td:last-child{position:absolute;right:0;top:18px}
+ #billing-form .billing-table td:last-child button{min-height:44px;min-width:32px}
+ #billing-form .billing-table td input,#billing-form .billing-table td select{font-size:16px}
+ #billing-form .billing-table .row-total{grid-column:1/-1;border-top:1px solid #eff4ff;display:flex;justify-content:space-between;align-items:center;padding-top:12px;font-size:17px}
+ #billing-form .billing-table .row-total::before{margin:0;font-size:12px}
+ #billing-form .stitch-summary-card{padding:20px 16px}
+ #billing-form .billing-payment-body{padding:8px 16px 20px}
+ #billing-form .billing-payment-grid{grid-template-columns:minmax(0,1fr)}
+ #billing-form .stitch-save-btn{display:none}
+ #billing-form .billing-mobile-save{display:flex;align-items:center;justify-content:space-between;gap:12px;position:fixed;bottom:0;left:0;right:0;padding:14px 16px calc(14px + env(safe-area-inset-bottom));background:#fff;border-top:1px solid #dce9ff;box-shadow:0 -3px 15px #0b1c3008;z-index:45}
+ .billing-mobile-save>div{display:grid;gap:4px;min-width:0}
+ .billing-mobile-save span{font-size:11px;color:#565e74}
+ .billing-mobile-save strong{font-size:18px;color:#0b1c30;font-variant-numeric:tabular-nums}
+ .billing-mobile-save button{min-height:48px;font-size:14px;border-radius:8px;padding:12px 18px}
+}
+@media print{.billing-command-actions,.billing-mobile-save{display:none!important}}

@@ -9,11 +9,12 @@
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap">
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='premium.css') }}">
+  {% block page_styles %}{% endblock %}
   <script defer src="{{ url_for('static', filename='app.js') }}"></script>
   <script defer src="{{ url_for('static', filename='mobile-navigation.js') }}"></script>
   <script defer src="{{ url_for('static', filename='password-visibility.js') }}"></script>
 </head>
-<body data-gst-registered="{{ 'true' if gst_registered else 'false' }}">
+<body class="{{ 'billing-workspace' if request.endpoint=='billing' else '' }}" data-gst-registered="{{ 'true' if gst_registered else 'false' }}">
 {% if session.user %}
   <div class="workspace-navigation" id="workspace-navigation">
     <button type="button" class="mobile-menu-toggle" aria-expanded="true" aria-controls="workspace-sidebar">☰ <span>Workspace menu</span></button>
