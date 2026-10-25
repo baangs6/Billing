@@ -77,3 +77,6 @@ MRP presentation (2026-10-25): removed separate Rate column from invoice HTML an
 
 
 Manual service reminders (2026-10-25): invoice-edit users can add customer/due-date/notes reminders independently of invoices. Existing invoice annual reminders remain. Both sources feed due/upcoming/completed views and dashboard counts. Manual records are tenant-scoped in business settings, capped at 1000 to bound document size; full company reset removes them. Submission tokens prevent duplicate creation. Two isolated tests passed in 27.70 seconds covering creation, replay, dashboard count, completion, missing customer, invalid date and role denial. No live reminder or invoice created during testing.
+
+
+Reminder customer lookup (2026-10-25): searchable name/phone/email selection and permission-controlled customer popup reuse the billing lookup script and extracted shared popup template. Missing customers save/select without leaving the reminder form; hidden customer ID remains server validated. Existing billing/manual reminder tests passed (3), plus a dedicated quick-add-to-reminder integration test. Disposable browser QA verified filtering, missing-name popup prefill and saving/selecting a synthetic customer; QA database cleaned. No live customer was created.

@@ -74,10 +74,13 @@
 <details class="panel padded" id="add-service-reminder" {{ 'open' if request.args.get('add') else '' }}><summary class="secondary">＋ Add service reminder</summary>
 <form method="post" class="form-grid padded">
   <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="add_manual"><input type="hidden" name="submission" value="{{ submission }}">
-  <label>Customer<select name="customer" required><option value="">Choose customer</option>{% for customer in customers %}<option value="{{ customer.id }}">{{ customer.name }}{% if customer.data.phone %} · {{ customer.data.phone }}{% endif %}</option>{% endfor %}</select></label>
+  <div class="customer-lookup"><label for="customer-search">Customer</label><input type="search" id="customer-search" placeholder="Search name, phone or email…" autocomplete="off" aria-controls="customer-results" required><input type="hidden" id="customer" name="customer"><div id="customer-results" class="customer-results" hidden></div>{% if 'customer.manage' in policy.permissions %}<button type="button" class="secondary" id="open-customer-popup">＋ Add customer</button>{% endif %}</div>
   <label>Service due date<input type="date" name="service_due" value="{{ today }}" required></label>
   <label class="full">Service details / notes<textarea name="notes" maxlength="2500" rows="3" placeholder="For example: annual filter replacement"></textarea></label>
   <div class="full"><button class="primary">Save reminder</button></div>
 </form></details>
 {% endif %}
+{% include 'customer_popup.html' %}
+<script type="application/json" id="customer-lookup-data">{{ {'customers':customers}|tojson }}</script>
+<script defer src="{{ url_for('static',filename='billing-customer.js') }}"></script>
 {% endblock %}

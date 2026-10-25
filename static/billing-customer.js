@@ -1,9 +1,9 @@
 (() => {
- const source=document.querySelector('#billing-data'); if(!source)return;
+ const source=document.querySelector('#billing-data, #customer-lookup-data'); if(!source)return;
  const customers=JSON.parse(source.textContent).customers;
  const search=document.querySelector('#customer-search'),selected=document.querySelector('#customer'),results=document.querySelector('#customer-results');
  const popup=document.querySelector('#customer-popup'),quick=document.querySelector('#quick-customer-form');
- function choose(customer){const walk=document.querySelector('#walk-in');if(walk)walk.checked=false;search.disabled=false;selected.value=customer.id;search.value=customer.name;results.hidden=true;selected.dispatchEvent(new Event('change'));}
+ function choose(customer){const walk=document.querySelector('#walk-in');if(walk)walk.checked=false;search.disabled=false;selected.value=customer.id;search.value=customer.name;search.setCustomValidity('');results.hidden=true;selected.dispatchEvent(new Event('change'));}
  function open(){const walk=document.querySelector('#walk-in');if(walk)walk.checked=false;search.disabled=false;quick.reset();quick.elements.name.value=search.value.trim();document.querySelector('#quick-customer-error').hidden=true;popup.showModal();quick.elements.name.focus();}
  function show(){
   const query=search.value.trim().toLowerCase();results.replaceChildren();
@@ -13,7 +13,7 @@
   if(popup){const add=document.createElement('button');add.type='button';add.className='customer-result add-result';add.textContent=query?'＋ Add “'+search.value.trim()+'” as a customer':'＋ Add new customer';add.addEventListener('click',open);results.append(add)}
   results.hidden=false;
  }
- search.addEventListener('input',()=>{selected.value='';selected.dispatchEvent(new Event('change'));show()});search.addEventListener('focus',show);
+ search.addEventListener('input',()=>{selected.value='';search.setCustomValidity('Choose a customer from the search results.');selected.dispatchEvent(new Event('change'));show()});search.addEventListener('focus',show);
  search.addEventListener('keydown',e=>{if(e.key==='ArrowDown'){e.preventDefault();results.querySelector('button')?.focus()}if(e.key==='Escape')results.hidden=true;if(e.key==='Enter'){e.preventDefault();results.querySelector('button')?.click()}});
  document.addEventListener('click',e=>{if(!e.target.closest('.customer-lookup'))results.hidden=true});
  document.querySelector('#open-customer-popup')?.addEventListener('click',open);document.querySelector('#close-customer-popup')?.addEventListener('click',()=>popup.close());

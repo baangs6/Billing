@@ -29,3 +29,15 @@ def test_manual_service_permission_and_invalid_date(workspace):
     backend.database.roles.update_one({'id':role['id']},{'$set':{'permissions':['invoice.view']}})
     backend.database.users.update_one({'id':1},{'$set':{'role_id':role['id']}})
     assert post('/service-reminders',data|dict(service_due='2020-01-01')).status_code==403
+
+
+def test_reminder_customer_search_and_quick_add(workspace):
+    client,post,backend=workspace
+    page=client.get('/service-reminders?add=1').data
+    assert b'id="customer-search"' in page and b'id="customer-popup"' in page
+    assert b'customer-lookup-data' in page and b'Anita Stores' in page
+    response=post('/billing/customer',dict(name='Service customer',phone='9876543211',state='Tamil Nadu'))
+    assert response.status_code==201
+    customer=response.json['customer']
+    post('/service-reminders',dict(action='add_manual',customer=str(customer['id']),service_due='2020-01-01',submission=secrets.token_hex(32)))
+    assert b'Service customer' in client.get('/service-reminders').data
