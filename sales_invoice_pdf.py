@@ -15,7 +15,10 @@ from reportlab.platypus import SimpleDocTemplate, BaseDocTemplate, PageTemplate,
 
 def build_sales_invoice_pdf(inv):
     preferences=inv['snapshot']['business'].get('extended',{})
-    theme=preferences.get('invoice_theme','A5')
+    theme=preferences.get('invoice_theme','A4_LEDGER')
+    if theme=='A4_LEDGER':
+        from ledger_invoice_pdf import build_ledger_invoice_pdf
+        return build_ledger_invoice_pdf(inv)
     if theme in ('THERMAL_58','THERMAL_80'): return build_thermal_pdf(inv,theme)
     output=io.BytesIO(); page=A4 if theme.startswith('A4_') else landscape(A5); width=page[0]-32
     normal=ParagraphStyle('invoice',fontName='Helvetica',fontSize=7.5,leading=10)

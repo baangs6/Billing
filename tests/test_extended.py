@@ -72,7 +72,7 @@ def test_print_formats_preserve_snapshot(workspace,theme):
     client,post,backend=workspace
     post('/business-profile',dict(invoice_theme=theme,payment_details='BOTH',business_type='Retail',show_gst_columns='1',show_qr='1',empty_signature_box='1',city='Chennai'))
     post('/billing',payload()|dict(po_number='PO-100',vehicle_number='TN 01 A 1234'))
-    response=client.get('/invoices/1/pdf');assert response.status_code==200 and response.data.startswith(b'%PDF')
+    response=client.get('/invoices/1/pdf?format=saved');assert response.status_code==200 and response.data.startswith(b'%PDF')
     with pymupdf.open(stream=response.data,filetype='pdf') as document:
         assert 'Desk lamp' in ''.join(page.get_text() for page in document)
         if theme.startswith('THERMAL'): assert document[0].rect.width<230

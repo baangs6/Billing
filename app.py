@@ -1022,7 +1022,11 @@ def create_app(database=None, backend=None):
     def invoice_pdf(ident):
         inv=invoice(ident)
         if request.args.get('copy')=='duplicate': inv['copy_label']='DUPLICATE COPY'
-        return send_file(io.BytesIO(build_invoice_pdf(inv)),mimetype='application/pdf',as_attachment=not request.args.get('preview'),download_name=invoice_filename(inv))
+        if request.args.get('format')!='saved':
+            from ledger_invoice_pdf import build_ledger_invoice_pdf
+            document=build_ledger_invoice_pdf(inv)
+        else: document=build_invoice_pdf(inv)
+        return send_file(io.BytesIO(document),mimetype='application/pdf',as_attachment=not request.args.get('preview'),download_name=invoice_filename(inv))
 
     @app.get('/reports')
     def reports():
