@@ -2,6 +2,23 @@ from copy import deepcopy
 import pytest
 import pymupdf
 from sales_invoice_pdf import build_sales_invoice_pdf
+from product_units import line_rate_amount
+
+
+def test_rate_amount_keeps_discount_out_and_rounds_exact_unit_rates():
+    assert line_rate_amount(dict(rate=900000,quantity=1000,discount=30000,total=870000))==900000
+    assert line_rate_amount(dict(rate=0,unit_rate_decimal='0.335',quantity=3000))==101
+
+
+@pytest.mark.parametrize('theme',['A5','A4_CLASSIC','THERMAL_58','THERMAL_80'])
+def test_item_amount_before_discount_and_total_after_discount(theme):
+    inv=sample_invoice(theme)
+    inv.update(discount=30000,taxable=870000,total=870000,balance=870000,subtotal=900000,common_discount=30000)
+    inv['items'][0].update(quantity=1000,rate=900000,mrp=1000000,discount=30000,taxable=870000,total=870000)
+    with pymupdf.open(stream=build_sales_invoice_pdf(inv),filetype='pdf') as document:
+        text=''.join(page.get_text() for page in document)
+        text=text.replace(',','')
+        assert '9000.00' in text and '8700.00' in text and '300.00' in text
 
 
 def sample_invoice(theme='A4_CLASSIC',layout='CLASSIC'):

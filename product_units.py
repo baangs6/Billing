@@ -1,5 +1,13 @@
 """Exact selected-unit pricing and primary-unit stock quantities for document lines."""
-from decimal import Decimal, InvalidOperation, localcontext
+from decimal import Decimal, InvalidOperation, localcontext, ROUND_HALF_UP
+
+
+def line_rate_amount(item):
+    """Display quantity times the saved unit rate, before invoice discounts."""
+    with localcontext() as context:
+        context.prec=60
+        rate=Decimal(str(item['unit_rate_decimal']))*100 if item.get('unit_rate_decimal') is not None else Decimal(item['rate'])
+        return int((rate*Decimal(item['quantity'])/1000).quantize(Decimal('1'),rounding=ROUND_HALF_UP))
 
 
 def rate_decimal(value):

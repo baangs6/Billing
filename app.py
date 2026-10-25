@@ -225,6 +225,8 @@ def create_app(database=None, backend=None):
     app.jinja_env.filters['inr'] = lambda x: f'₹{Decimal(x)/100:,.2f}'
     app.jinja_env.filters['qty'] = lambda x: f'{Decimal(x)/1000:g}'
     app.jinja_env.filters['unit_rate'] = rate_text
+    from product_units import line_rate_amount
+    app.jinja_env.filters['line_rate_amount'] = line_rate_amount
 
     @app.errorhandler(ValueError)
     def invalid(error):

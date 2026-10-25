@@ -68,3 +68,6 @@ Final activation: company, owner and preserved-preview login endpoints returned 
 
 
 Invoice rate column (2026-10-25): added saved per-unit RATE beside MRP in A5 and all A4 sales invoice PDFs, including GST/non-GST documents. Charge rows retain dashes for quantity/rate/MRP. HTML print already had Rate; thermal receipts retain quantity x rate. All 34 PDF tests passed; rendered A5 GST layout visually checked. No stored invoice values changed.
+
+
+Pre-discount invoice item amounts (2026-10-25): HTML print and A4/A5/thermal PDFs display saved quantity times unit rate before discount; invoice discount/tax/final totals remain unchanged. Exact decimal-rate rounding is shared. Regression cases cover INR 9000 line / INR 300 discount / INR 8700 total and fractional rates. No stored data rewritten.

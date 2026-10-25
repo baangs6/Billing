@@ -137,7 +137,7 @@
           {% if inv.type == 'GST' %}
             <td>{{ item.gst }}%<small>{{ item.tax|inr }}</small></td>
           {% endif %}
-          <td style="text-align:right"><strong>{{ item.total|inr }}</strong></td>
+          <td style="text-align:right"><strong>{{ item|line_rate_amount|inr }}</strong></td>
         </tr>
         {% endfor %}
       </tbody>

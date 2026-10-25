@@ -3,7 +3,7 @@ import io
 import base64
 from datetime import date
 from decimal import Decimal
-from product_units import rate_text
+from product_units import rate_text, line_rate_amount
 from company_profile import header_fields
 from xml.sax.saxutils import escape
 from PIL import Image as PILImage
@@ -74,11 +74,11 @@ def build_sales_invoice_pdf(inv):
         if 'common_discount' not in inv and basis>item['taxable'] and basis>0: mrp+=f"\n({(basis-item['taxable'])/basis*100:.2f}% OFF)"
         values=[p(n,center),p(label),p(f"{Decimal(item['quantity'])/1000:g} {item['unit']}",center),p(rate_text(item),right),p(mrp,right)]
         if columns_gst: values.append(p(f"{item['gst']}%\n{money(item['tax'])}",right))
-        values.append(p(money(item['total']),right)); rows.append(values)
+        values.append(p(money(line_rate_amount(item)),right)); rows.append(values)
     for item in charges:
         values=[p(''),p(item['name']+('\nHSN/SAC: '+item['hsn'] if item.get('hsn') else ''),right),p('-',center),p('-',right),p('-',right)]
         if columns_gst: values.append(p(f"{item['gst']}%\n{money(item['tax'])}",right))
-        values.append(p(money(item['total']),right)); rows.append(values)
+        values.append(p(money(line_rate_amount(item)),right)); rows.append(values)
     if inv['discount']:
         rows.append([p(''),p('Discount',right)]+[p('') for _ in headings[2:-1]]+[p(money(inv['discount']),right)])
     if gst:
@@ -155,7 +155,7 @@ def build_thermal_pdf(inv,theme):
         if item.get('hsn'): label+='\nHSN/SAC '+item['hsn']
         if preferences.get('show_description') and item.get('description'): label+='\n'+item['description']
         if gst and preferences.get('show_gst_columns',True): label+=f"\nGST {item['gst']}%: {amount(item['tax'])}"
-        rows.append([p(label),p(amount(item['total']))])
+        rows.append([p(label),p(amount(line_rate_amount(item)))])
     for label,key in [('Discount','discount'),('CGST','cgst'),('SGST','sgst'),('IGST','igst'),('Round off','round_off'),('Total','total'),('Credit notes','credit'),('Refunded','refunded'),('Received','received'),('Balance','balance')]:
         if key in inv and (key not in ('cgst','sgst','igst','round_off','credit','refunded') or inv[key]): rows.append([p(label,key=='total'),p(amount(inv[key]),key=='total')])
     table=Table(rows,colWidths=[usable*.62,usable*.38],repeatRows=1,hAlign='LEFT',splitInRow=1)
