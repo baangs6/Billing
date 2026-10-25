@@ -10,7 +10,7 @@ from test_app import mongo_backend,workspace
 from test_proposals import proposal_data
 from waitress import create_server
 
-generator=mongo_backend.__wrapped__(); server=None
+generator=mongo_backend.__wrapped__(None); server=None
 try:
     backend=next(generator)
     client,post,_=workspace.__wrapped__(backend)

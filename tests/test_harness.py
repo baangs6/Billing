@@ -19,7 +19,7 @@ def test_failed_database_setup_cleans_only_its_disposable_database(monkeypatch):
     monkeypatch.setattr(test_app,'MongoBackend',backend)
     monkeypatch.setattr(test_app,'initialize_saas',fail)
     with pytest.raises(RuntimeError,match='Simulated setup failure'):
-        next(test_app.mongo_backend.__wrapped__())
+        next(test_app.mongo_backend.__wrapped__(None))
     assert len(removed)==1 and removed[0].startswith('ledger_test_') and closed==[True]
 
 
@@ -38,3 +38,13 @@ def test_manual_qa_attempts_all_cleanup_after_failures(script):
     with pytest.raises(RuntimeError): exec(compile(ast.Module(body=final,type_ignores=[]),script,'exec'),state)
     assert attempts[-2:]==['fixture','bootstrap']
     if script!='visual_review.py': assert attempts[:2]==['close','shutdown']
+
+
+def test_imported_backend_aliases_use_the_canonical_session_store():
+    store=object();requested=[]
+    request=SimpleNamespace(getfixturevalue=lambda name:requested.append(name) or store)
+    for _ in range(2):
+        generator=test_app.mongo_backend.__wrapped__(request)
+        assert next(generator) is store
+        with pytest.raises(StopIteration): next(generator)
+    assert requested==['shared_mongo_backend','shared_mongo_backend']

@@ -111,7 +111,7 @@ def test_qr_uses_balance_and_thermal_paper_fits_content(workspace,monkeypatch):
     def qr(business,amount): captured.append(amount);return Spacer(1,72)
     monkeypatch.setattr(sales_invoice_pdf,'upi_qr',qr)
     post('/billing',payload()|dict(received='50'))
-    response=client.get('/invoices/1/pdf')
+    response=client.get('/invoices/1/pdf?format=saved')
     assert response.status_code==200 and captured==[18600]
     with pymupdf.open(stream=response.data,filetype='pdf') as document:
         assert len(document)==1 and document[0].rect.height<600

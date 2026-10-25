@@ -7,7 +7,7 @@ sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 import conftest
 spec=importlib.util.spec_from_file_location('test_app',Path(__file__).with_name('test_app.py'))
 module=importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
-fixture=module.mongo_backend.__wrapped__()
+fixture=module.mongo_backend.__wrapped__(None)
 try:
     backend=next(fixture)
     client,post,_=module.workspace.__wrapped__(backend)

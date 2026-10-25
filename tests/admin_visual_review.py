@@ -13,7 +13,7 @@ from admin_app import create_admin_app
 from werkzeug.security import generate_password_hash
 from waitress import create_server
 
-generator=mongo_backend.__wrapped__(); server=None
+generator=mongo_backend.__wrapped__(None); server=None
 try:
     backend=next(generator)
     workspace.__wrapped__(backend)

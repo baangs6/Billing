@@ -7,7 +7,10 @@ from app import create_app, calculate, money, quantity, DEFAULTS
 from saas import initialize_saas, Platform, PLATFORM_COLLECTIONS
 
 @pytest.fixture(scope='session')
-def mongo_backend():
+def mongo_backend(request):
+    if request is not None:
+        yield request.getfixturevalue('shared_mongo_backend')
+        return
     uri,_=load_configuration()
     name='ledger_test_'+secrets.token_hex(8)
     backend=MongoBackend(uri,name)
@@ -554,17 +557,21 @@ def test_company_reset_permissions_and_rollback(workspace,monkeypatch):
 
 def test_annual_service_reminders(workspace,monkeypatch):
     client,post,backend=workspace
+    def reminder_rows(url='/service-reminders'):
+        response=client.get(url)
+        assert response.status_code==200
+        return response.data.split(b'<tbody>',1)[1].split(b'</tbody>',1)[0]
     post('/billing',payload()|dict(date='2026-10-14'))
     monkeypatch.setattr('app.today',lambda:'2027-10-13')
-    assert b'Anita Stores' not in client.get('/service-reminders').data
-    assert b'Anita Stores' in client.get('/service-reminders?stage=upcoming').data
+    assert b'Anita Stores' not in reminder_rows()
+    assert b'Anita Stores' in reminder_rows('/service-reminders?stage=upcoming')
     monkeypatch.setattr('app.today',lambda:'2027-10-14')
-    assert b'Anita Stores' in client.get('/service-reminders').data
-    assert b'9876543210' in client.get('/service-reminders').data
+    assert b'Anita Stores' in reminder_rows()
+    assert b'9876543210' in reminder_rows()
     assert b'Service reminders due' in client.get('/').data
     assert post('/service-reminders',dict(id='1',version='1')).status_code==302
-    assert b'Anita Stores' not in client.get('/service-reminders').data
-    assert b'Anita Stores' in client.get('/service-reminders?stage=completed').data
+    assert b'Anita Stores' not in reminder_rows()
+    assert b'Anita Stores' in reminder_rows('/service-reminders?stage=completed')
     assert backend.database.invoices.find_one({'id':1})['service_completed_at']=='2027-10-14'
     assert client.post('/service-reminders',data=dict(id='1')).status_code==400
 
@@ -686,8 +693,8 @@ def test_additional_charges_tax_edit_and_pdf(workspace):
     with pymupdf.open(stream=pdf,filetype='pdf') as document:
         text=''.join(page.get_text() for page in document)
         assert 'Service charge' in text and 'Transport' in text and '404.00' in text
-        assert 'myBillBook' not in text and 'ORIGINAL FOR RECIPIENT' in text
-        assert document[0].rect.width>document[0].rect.height
+        assert 'myBillBook' not in text and 'TAX INVOICE' in text
+        assert len(document)==1 and document[0].rect.height>document[0].rect.width
     post('/billing',data|dict(id='1',version='1',type='NON-GST'))
     assert values(backend,'invoices','total')==[35000]
     assert values(backend,'inventory','quantity')==[8000]
@@ -703,10 +710,11 @@ def test_charge_display_hides_quantity_and_prices(workspace):
     post('/billing',data)
     html=client.get('/invoices/1').get_data(as_text=True)
     row=next(row for row in re.findall(r'<tr>.*?</tr>',html,re.S) if 'Service charge' in row)
-    assert row.count('<td>-</td>')==4
+    assert row.count('<td>-</td>')==2
+    assert '<th>Rate' not in html and '<th>Discount' not in html
     assert '9987' in row and '300.00' in row and 'CHARGE' not in row
     with pymupdf.open(stream=client.get('/invoices/1/pdf').data,filetype='pdf') as doc:
-        assert 'HSN/SAC: 9987' in ''.join(page.get_text() for page in doc)
+        assert '9987' in ''.join(page.get_text() for page in doc)
 
 
 def test_common_discount_allocation_and_rounding():
