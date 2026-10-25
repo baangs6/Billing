@@ -9,7 +9,7 @@ for (const isMobile of [true, false]) {
   const sidebar = { hidden: false };
   const toggle = { setAttribute: (name, value) => { toggle[name] = value; }, focus: () => { focused = true; }, addEventListener: (name, fn) => { handlers[name] = fn; } };
   const navigation = { querySelector: selector => selector === 'button' ? toggle : sidebar, addEventListener: (name, fn) => { handlers[name] = fn; } };
-  vm.runInNewContext(source, { document: { querySelector: () => navigation }, window: { matchMedia: () => media } });
+  vm.runInNewContext(source, { document: { querySelector: () => navigation, querySelectorAll: () => [] }, window: { matchMedia: () => media, addEventListener: () => {} } });
   assert.equal(sidebar.hidden, isMobile);
   assert.equal(toggle['aria-expanded'], String(!isMobile));
   if (isMobile) { handlers.click(); assert.equal(sidebar.hidden, false); }
@@ -20,5 +20,5 @@ for (const isMobile of [true, false]) {
   handlers.change();
   assert.equal(sidebar.hidden, !isMobile);
 }
-vm.runInNewContext(source, { document: { querySelector: () => null } });
+vm.runInNewContext(source, { document: { querySelector: () => null, querySelectorAll: () => [] }, window: { addEventListener: () => {} } });
 console.log('Mobile navigation: collapse, toggle, Escape focus, resize and public pages passed.');
