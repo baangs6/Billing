@@ -1,0 +1,18 @@
+/* Keep settings navigation independent of the sidebar's generic nav rules. */
+#settings-nav{flex-direction:row;flex-wrap:wrap;justify-content:flex-start;align-items:center;gap:6px;padding:10px;margin:16px 0 24px;border:1px solid #dfe7f1;border-radius:12px;background:#fff;position:static;overflow:visible;min-width:0}
+#settings-nav .stitch-settings-tab{flex:0 1 auto;min-height:44px;max-width:100%;gap:8px;white-space:normal}
+#settings-nav .stitch-settings-tab span{display:inline;width:auto;height:auto;min-width:0;color:inherit;flex-shrink:1;text-align:left}
+#settings-nav .stitch-settings-tab-danger{margin-left:0}
+.stitch-settings-workspace,.stitch-settings-card,.stitch-settings-grid,.stitch-settings-field{min-width:0;max-width:100%;box-sizing:border-box}
+.stitch-settings-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
+.stitch-settings-workspace .stitch-settings-card{margin-bottom:0}
+.stitch-settings-label{flex-direction:row;align-items:center;justify-content:flex-start;flex-wrap:wrap;gap:6px;text-align:left}
+.stitch-settings-card-title{flex-wrap:wrap;line-height:1.5}
+.stitch-settings-card-title-group{min-width:0}
+.stitch-settings-meta-badge{max-width:100%;white-space:normal;overflow-wrap:anywhere}
+.stitch-settings-input,.stitch-settings-select,.stitch-settings-textarea{box-sizing:border-box;min-width:0;max-width:100%}
+.stitch-settings-card .stitch-asset-body{flex-wrap:wrap}
+.stitch-settings-card .stitch-audit-table-wrap{max-width:100%;overflow-x:auto}
+.stitch-settings-card .audit-json{white-space:pre-wrap;overflow-wrap:anywhere}
+@media(max-width:1100px){.stitch-settings-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.stitch-settings-grid .stitch-col-span-3{grid-column:1/-1}}
+@media(max-width:700px){#settings-nav{gap:4px;padding:8px}#settings-nav .stitch-settings-tab{flex:1 1 130px;padding:10px}.stitch-settings-grid{grid-template-columns:minmax(0,1fr)}.stitch-settings-grid .stitch-col-span-2,.stitch-settings-grid .stitch-col-span-3{grid-column:1/-1}.stitch-settings-card-header,.stitch-settings-card-body{padding:18px}.stitch-settings-card input,.stitch-settings-card select,.stitch-settings-card textarea{font-size:16px}.stitch-settings-card .stitch-asset-body>*{max-width:100%;min-width:0}}
