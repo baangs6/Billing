@@ -1022,7 +1022,10 @@ def create_app(database=None, backend=None):
     def invoice_pdf(ident):
         inv=invoice(ident)
         if request.args.get('copy')=='duplicate': inv['copy_label']='DUPLICATE COPY'
-        if request.args.get('format')!='saved':
+        if request.args.get('format')=='thermal80':
+            from sales_invoice_pdf import build_thermal_pdf
+            document=build_thermal_pdf(inv,'THERMAL_80')
+        elif request.args.get('format')!='saved':
             from ledger_invoice_pdf import build_ledger_invoice_pdf
             document=build_ledger_invoice_pdf(inv)
         else: document=build_invoice_pdf(inv)

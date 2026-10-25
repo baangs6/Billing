@@ -36,5 +36,12 @@ def test_download_defaults_to_clean_a4_and_saved_format_remains_available(worksp
             assert len(document)==1 and document[0].rect.width>590
     with pymupdf.open(stream=client.get('/invoices/1/pdf?format=saved').data,filetype='pdf') as document:
         assert document[0].rect.width==164
+    for suffix in ('','&preview=1'):
+        response=client.get('/invoices/1/pdf?format=thermal80'+suffix)
+        assert response.status_code==200
+        assert response.headers['Content-Disposition'].startswith('inline' if suffix else 'attachment')
+        with pymupdf.open(stream=response.data,filetype='pdf') as document:
+            assert document[0].rect.width==227
+            assert 'Desk lamp' in ''.join(page.get_text() for page in document)
     assert backend.database.invoices.find_one({})==before
     assert b'data-pdf-url="/invoices/1/pdf?preview=1"' in client.get('/invoices/1').data

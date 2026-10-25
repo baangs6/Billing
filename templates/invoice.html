@@ -14,6 +14,8 @@
       Preview
     </a>
     <a class="secondary" href="/invoices/{{ inv.id }}/pdf?copy=duplicate">Duplicate PDF copy</a>
+    <a class="secondary" href="/invoices/{{ inv.id }}/pdf?format=thermal80&amp;preview=1" target="_blank" rel="noopener">Print · 3-inch thermal</a>
+    <a class="secondary" href="/invoices/{{ inv.id }}/pdf?format=thermal80">Download · 3-inch thermal</a>
     {% if inv.snapshot.business.get('extended',{}).get('invoice_theme','A4_LEDGER')!='A4_LEDGER' %}<a class="secondary" href="/invoices/{{ inv.id }}/pdf?format=saved">Saved print format</a>{% endif %}
     <a class="primary" href="/invoices/{{ inv.id }}/pdf">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
