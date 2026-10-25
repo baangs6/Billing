@@ -2,7 +2,7 @@ from copy import deepcopy
 import pytest
 import pymupdf
 from sales_invoice_pdf import build_sales_invoice_pdf
-from product_units import line_rate_amount
+from product_units import line_rate_amount,mrp_discount
 
 
 def test_rate_amount_keeps_discount_out_and_rounds_exact_unit_rates():
@@ -28,14 +28,14 @@ def sample_invoice(theme='A4_CLASSIC',layout='CLASSIC'):
 
 @pytest.mark.parametrize('theme',['A5','A4_CLASSIC','A4_SIMPLE','A4_ADVANCED'])
 @pytest.mark.parametrize('gst',[False,True])
-def test_rate_column_shows_saved_rate_separately_from_mrp(theme,gst):
+def test_mrp_discount_and_selling_amount_without_rate_column(theme,gst):
     inv=sample_invoice(theme)
     if gst: inv['type']='GST'
     inv['items'][0]['rate']=9876
     inv['items'].append(dict(name='Service charge',is_charge=True,quantity=1000,rate=5000,mrp=0,discount=0,unit='CHARGE',hsn='9987',gst='0',tax=0,taxable=5000,total=5000))
     with pymupdf.open(stream=build_sales_invoice_pdf(inv),filetype='pdf') as document:
         text=''.join(page.get_text() for page in document)
-        assert 'RATE' in text and '98.76' in text and '120.00' in text
+        assert 'RATE' not in text and '197.52' in text and '120.00' in text and '(17.70% OFF)' in text
         for page in document:
             assert all(block[0]>=0 and block[2]<=page.rect.width+1 for block in page.get_text('blocks'))
 
@@ -80,3 +80,9 @@ def test_optional_totals_hide_zero_and_keep_nonzero(theme,amount):
         text=''.join(page.get_text() for page in document)
         for label in ('Round off','Credit notes','Refunded'):
             assert (label in text)==bool(amount),(theme,label,text)
+
+
+def test_mrp_discount_ignores_common_discount_and_handles_missing_mrp():
+    assert mrp_discount(dict(mrp=1000000,rate=900000,discount=30000))=='10.00'
+    assert mrp_discount(dict(mrp=0,rate=900000))=='0.00'
+    assert mrp_discount(dict(mrp=100,rate=0,unit_rate_decimal='0.333333333'))=='66.67'

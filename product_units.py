@@ -10,6 +10,15 @@ def line_rate_amount(item):
         return int((rate*Decimal(item['quantity'])/1000).quantize(Decimal('1'),rounding=ROUND_HALF_UP))
 
 
+def mrp_discount(item):
+    """Compare saved MRP with the selling rate, excluding invoice-level discounts."""
+    with localcontext() as context:
+        context.prec=60
+        mrp=Decimal(item.get('mrp',0))
+        rate=Decimal(str(item['unit_rate_decimal']))*100 if item.get('unit_rate_decimal') is not None else Decimal(item['rate'])
+        return format(((mrp-rate)/mrp*100 if mrp>rate and mrp>0 else Decimal(0)).quantize(Decimal('.01'),rounding=ROUND_HALF_UP),'.2f')
+
+
 def rate_decimal(value):
     if len(str(value))>100: raise ValueError('Unit rates must contain at most 100 characters.')
     try: result=Decimal(str(value))

@@ -71,3 +71,6 @@ Invoice rate column (2026-10-25): added saved per-unit RATE beside MRP in A5 and
 
 
 Pre-discount invoice item amounts (2026-10-25): HTML print and A4/A5/thermal PDFs display saved quantity times unit rate before discount; invoice discount/tax/final totals remain unchanged. Exact decimal-rate rounding is shared. Regression cases cover INR 9000 line / INR 300 discount / INR 8700 total and fractional rates. No stored data rewritten.
+
+
+MRP presentation (2026-10-25): removed separate Rate column from invoice HTML and A4/A5 PDFs. MRP displays bracketed percentage based solely on saved MRP minus selling rate, excluding common discount. Thermal also shows MRP/percentage. Amount remains selling rate times quantity, with common discount only in totals. Missing/zero MRP avoids division by zero; exact unit rates supported. All 41 selected PDF/helper/HTML tests passed in 24.14 seconds; A5 example visually verified. No data rewrite.

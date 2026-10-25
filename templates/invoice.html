@@ -115,7 +115,6 @@
           <th>#</th>
           <th>Item{% if inv.type == 'GST' %} / HSN{% endif %}</th>
           <th>Qty</th>
-          <th>Rate</th>
           <th>MRP</th>
           {% if 'common_discount' not in inv %}<th>Discount</th>{% endif %}
           {% if inv.type == 'GST' %}<th>GST / Tax</th>{% endif %}
@@ -131,8 +130,7 @@
             {% if inv.type == 'GST' or item.get('is_charge') %}<small>{{ item.hsn }}</small>{% endif %}
           </td>
           <td>{% if item.get('is_charge') %}-{% else %}{{ item.quantity|qty }} {{ item.unit }}{% endif %}</td>
-          <td>{% if item.get('is_charge') %}-{% else %}{% if item.get('unit_rate_decimal') %}₹{{ item.unit_rate_decimal }}{% else %}{{ item.rate|inr }}{% endif %}{% endif %}</td>
-          <td>{% if item.get('is_charge') %}-{% else %}{{ item.mrp|inr }}{% endif %}</td>
+          <td>{% if item.get('is_charge') %}-{% else %}{{ item.mrp|inr }}<small>({{ item|mrp_discount }}% off)</small>{% endif %}</td>
           {% if 'common_discount' not in inv %}<td>{% if item.get('is_charge') %}-{% else %}{{ item.discount|inr }}{% endif %}</td>{% endif %}
           {% if inv.type == 'GST' %}
             <td>{{ item.gst }}%<small>{{ item.tax|inr }}</small></td>
