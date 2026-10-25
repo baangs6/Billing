@@ -17,6 +17,7 @@
           <input name="{{ field }}" type="{{ 'email' if field == 'email' else 'text' }}" maxlength="150">
         </label>
       {% endfor %}
+      {% set referral_customers=referral_customers|default(customers) %}{% set edit=none %}{% include 'referrer_picker.html' %}
       <p id="quick-customer-error" class="full alert error" role="alert" hidden></p>
       <div class="full">
         <button class="primary" type="submit">Save & select customer</button>

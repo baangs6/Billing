@@ -462,6 +462,12 @@
       </div>
     </div>
   </section>
+<section class="stitch-settings-card"><div class="stitch-settings-card-body"><h2>Referral rewards</h2>
+<p>One point for each referred customer after their first invoice is fully paid. No welcome points.</p>
+<label>Discount mode<select name="referral_mode"><option value="FIXED" {{ 'selected' if business.get('referral_mode','FIXED')=='FIXED' else '' }}>Fixed value per point</option><option value="MANUAL" {{ 'selected' if business.get('referral_mode')=='MANUAL' else '' }}>Manual discount amount</option></select></label>
+<label>Fixed value per point INR<input name="referral_value" type="number" min="0" max="1000000000" step="0.01" value="{{ business.get('referral_value',0)/100 }}"></label>
+<small>Set a positive value to redeem in fixed mode. Manual mode lets the invoice creator enter points and amount. Earned points remain earned if a payment is later edited.</small>
+</div></section>
 </form>
 
 {# ========================================================================= #}

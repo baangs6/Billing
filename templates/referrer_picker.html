@@ -1,0 +1,7 @@
+<div class="referrer-picker full">
+  <label>Search referring customer<input type="search" class="referrer-search" placeholder="Search name or phone" autocomplete="off"></label>
+  <label>Referred by (optional)<select name="referred_by"><option value="">No referral</option>
+    {% for ref in referral_customers %}{% if not edit or ref.id != edit.id %}<option value="{{ ref.id }}" {{ 'selected' if edit and edit.data.get('referred_by')==ref.id else '' }}>{{ ref.name }} · {{ ref.data.get('phone','') }} · #{{ ref.id }}</option>{% endif %}{% endfor %}
+  </select></label><small>One point is earned after this customer's first invoice is fully paid. No welcome points.</small>
+</div>
+<script type="module" src="{{ url_for('static',filename='referrer-picker.js') }}"></script>

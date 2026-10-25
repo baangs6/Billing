@@ -68,9 +68,10 @@ def build_ledger_invoice_pdf(inv):
             row.append(p(money(line_rate_amount(item)),right));rows.append(row)
         result += [table(rows,widths,True),Spacer(1,font*1.5)]
         totals=[]
-        for label,key in [('Subtotal','subtotal'),('Discount','discount'),('Taxable amount' if gst else 'Total amount','taxable'),('CGST','cgst'),('SGST','sgst'),('IGST','igst'),('Credit notes','credit'),('Refunded','refunded'),('Round off','round_off'),('Grand total','total'),('Received','received'),('Balance due','balance')]:
-            if key in ('discount','cgst','sgst','igst','credit','refunded','round_off') and not inv.get(key): continue
-            totals.append([p(label,grand if key=='total' else normal),p(money(inv.get(key,0)),grand_right if key=='total' else right)])
+        for label,key in [('Subtotal','subtotal'),('Discount','discount'),('Referral discount','referral_discount'),('Taxable amount' if gst else 'Total amount','taxable'),('CGST','cgst'),('SGST','sgst'),('IGST','igst'),('Credit notes','credit'),('Refunded','refunded'),('Round off','round_off'),('Grand total','total'),('Received','received'),('Balance due','balance')]:
+            amount=inv.get(key,0)-inv.get('referral_discount',0) if key=='discount' else inv.get(key,0)
+            if key in ('referral_discount','discount','cgst','sgst','igst','credit','refunded','round_off') and not amount: continue
+            totals.append([p(label,grand if key=='total' else normal),p(money(amount),grand_right if key=='total' else right)])
         total_table=table(totals,[170,110]);total_table.hAlign='RIGHT';total_table.setStyle(TableStyle([('LINEBELOW',(0,0),(-1,-1),.4,line)]))
         result += [total_table,Spacer(1,font*1.5)]
         notes=[p('Terms & conditions',bold),p(snapshot.get('terms',''))]

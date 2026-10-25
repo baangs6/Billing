@@ -27,16 +27,29 @@ if(dataElement){
   if(product?.data.wholesale_price!=null)select('Price tier','price_tier',[['RETAIL','Retail'],['WHOLESALE','Wholesale']]);
   select('Tax pricing','pricing_mode',[['EXCLUSIVE','Tax exclusive'],['INCLUSIVE','Tax inclusive']]);
  }
+ const referralPoints=document.querySelector('#referral-points'),referralAmount=document.querySelector('#referral-amount');
+ let referralCustomer=document.querySelector('#customer').value;
  function calculate(){
   let subtotal=0,discount=0,cgst=0,sgst=0,igst=0,chargeAmount=0;
   const customer=data.customers.find(c=>c.id===Number(document.querySelector('#customer').value))||(walkIn?.checked?{data:{state:document.querySelector('#walk-in-state')?.value||data.business.state}}:null);
+  if(referralPoints){
+   const selected=document.querySelector('#customer').value;
+   if(selected!==referralCustomer){referralPoints.value='0';referralAmount.value='0';referralCustomer=selected;}
+   const available=customer?.referral_available??customer?.data?.referral_points??0;
+   document.querySelector('#referral-balance').textContent='Referral points: '+available+' available';
+   referralPoints.setCustomValidity(Number(referralPoints.value)>available?'Not enough referral points.':'');
+   if(data.business.referral_mode!=='MANUAL'&&document.activeElement===referralPoints)referralAmount.value=(Number(referralPoints.value)*(data.business.referral_value||0)/100).toFixed(2);
+   if(!Number(referralPoints.value))referralAmount.value='0';
+  }
+  const referral=paise(referralAmount?.value||0);
   const interstate=customer&&customer.data.state.trim().toLowerCase()!==data.business.state.trim().toLowerCase(),gst=document.querySelector('#invoice-type').value==='GST';
   document.querySelector(`.billing-table th:nth-child(${common?5:6})`).hidden=!gst;
   const gross=items.map(i=>Math.round((i.unit_rate_decimal!==undefined?Number(i.rate)*100:paise(i.rate))*Number(i.quantity)+1e-7));
   const bases=gross.map((amount,n)=>gst&&items[n].pricing_mode==='INCLUSIVE'?Math.round(amount*100/(100+Number(items[n].gst))+1e-7):amount);
   if(common){
-   const eligible=bases.reduce((sum,base,n)=>sum+(items[n].is_charge?0:base),0),amount=paise(common.value);
-   common.setCustomValidity(amount>eligible?'Discount cannot exceed the item subtotal.':'');
+   const eligible=bases.reduce((sum,base,n)=>sum+(items[n].is_charge?0:base),0),amount=paise(common.value)+referral;
+   common.setCustomValidity(amount>eligible?'Combined discounts cannot exceed the item subtotal.':'');
+   referralAmount?.setCustomValidity(referral>eligible?'Referral discount cannot exceed the item subtotal.':'');
    let cumulative=0,allocated=0;
    items.forEach((i,n)=>{cumulative+=i.is_charge?0:bases[n];const share=eligible?Math.round(amount*cumulative/eligible+1e-7):0;i.discount=(share-allocated)/100;allocated=share});
   }
@@ -51,15 +64,15 @@ if(dataElement){
   if(manualRound){manualRound.disabled=Boolean(round?.checked);if(round?.checked)manualRound.value='0';}
   const raw=subtotal-discount+cgst+sgst+igst,adjustment=round?.checked?Math.round(raw/100)*100-raw:paise(manualRound?.value||0),total=raw+adjustment;
   if(walkIn?.checked&&!form.elements.id.value){document.querySelector('#received').value=(total/100).toFixed(2);document.querySelector('#received').readOnly=true;}else if(!form.elements.id.value){document.querySelector('#received').readOnly=false;}
-  const values=[['Subtotal',subtotal-chargeAmount],...(common?[['Additional charges',chargeAmount]]:[]),['Discount',discount],[gst?'Taxable amount':'Total amount',subtotal-discount],...(gst?(interstate?[['IGST',igst]]:[['CGST',cgst],['SGST',sgst]]):[]),...(round?[['Round off',adjustment]]:[]),['Grand total',total]];
+  const values=[['Subtotal',subtotal-chargeAmount],...(common?[['Additional charges',chargeAmount]]:[]),['Discount',Math.max(0,discount-referral)],['Referral discount',referral],[gst?'Taxable amount':'Total amount',subtotal-discount],...(gst?(interstate?[['IGST',igst]]:[['CGST',cgst],['SGST',sgst]]):[]),...(round?[['Round off',adjustment]]:[]),['Grand total',total]];
   const container=document.querySelector('#calculation');container.replaceChildren();
-  values.filter(([label,value])=>label!=='Round off'||value!==0).forEach(([label,value])=>{const div=document.createElement('div');div.className='summary-line'+(label==='Grand total'?' grand':'');const a=document.createElement('span'),b=document.createElement('strong');a.textContent=label;b.textContent=fmt(value);div.append(a,b);container.append(div)});
+  values.filter(([label,value])=>!['Round off','Referral discount'].includes(label)||value!==0).forEach(([label,value])=>{const div=document.createElement('div');div.className='summary-line'+(label==='Grand total'?' grand':'');const a=document.createElement('span'),b=document.createElement('strong');a.textContent=label;b.textContent=fmt(value);div.append(a,b);container.append(div)});
   document.querySelector('#balance').textContent=fmt(total-paise(document.querySelector('#received').value));
   const mobileTotal=document.querySelector('#mobile-invoice-total');if(mobileTotal)mobileTotal.textContent=fmt(total);
   const count=document.querySelector('#billing-item-count');if(count)count.textContent=items.filter(item=>!item.is_charge).length;
 
  }
- form.addEventListener('input',e=>{const index=e.target.closest('[data-index]')?.dataset.index,field=e.target.dataset.field;if(index!==undefined&&field){items[index][field]=e.target.value;if(field==='rate'&&data.units_enabled)items[index].unit_rate_decimal=e.target.value;}if(field||e.target===common||e.target===round||e.target===manualRound)calculate()});
+ form.addEventListener('input',e=>{const index=e.target.closest('[data-index]')?.dataset.index,field=e.target.dataset.field;if(index!==undefined&&field){items[index][field]=e.target.value;if(field==='rate'&&data.units_enabled)items[index].unit_rate_decimal=e.target.value;}if(field||e.target===common||e.target===round||e.target===manualRound||e.target===referralPoints||e.target===referralAmount)calculate()});
  document.addEventListener('billing-product-created',event=>{data.products.push(event.detail)});
  document.addEventListener('billing-customer-created',event=>{data.customers.push(event.detail);calculate()});
  document.querySelector('#walk-in-state')?.addEventListener('input',calculate);

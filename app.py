@@ -24,6 +24,7 @@ from billing_options import due_date, manual_rounding, customer_balances
 from accounts import account_key
 from accounting_reports import REPORT_TYPES as ACCOUNTING_REPORT_TYPES
 from report_totals import report_period,total_row
+from referrals import referral_customer,redemption,apply_redemption,change_points,award_first_payment
 from product_units import line_units,line_pricing,primary_quantity,product_options,rate_text
 from saas import access, quota, seed_roles, Platform, PERMISSIONS, FEATURES, local_month, stamp, subscription_state, month_add
 
@@ -413,6 +414,7 @@ def create_app(database=None, backend=None):
         if not name or len(name)>150: return {'error':'Customer name is required and must be at most 150 characters.'},400
         from party_data import customer_fields
         data=customer_fields(request.form,{},money)
+        data['referred_by']=referral_customer(db(),request.form)
         ident=db().insert('customers',dict(name=name,data=data,archived=0))
         audit('save','customer',ident)
         return {'customer':dict(id=ident,name=name,data=data)},201
@@ -455,6 +457,7 @@ def create_app(database=None, backend=None):
                     from party_data import customer_fields
                     previous=owned('customers',ident) if ident else None
                     data=customer_fields(request.form,previous['data'] if previous else {},money)
+                    data['referred_by']=referral_customer(db(),request.form,previous)
                     if previous and data.get('opening_balance',0)!=previous['data'].get('opening_balance',0) and (db().count('invoices',{'customer_id':previous['id']}) or db().count('trade_payments',{'customer_id':previous['id']})): raise ValueError('Opening balance cannot change after invoice history exists.')
                     if ident: db().update('customers',{'id':ident},{'name':name,'data':data})
                     else: ident=db().insert('customers',dict(name=name,data=data,archived=0))
@@ -496,7 +499,9 @@ def create_app(database=None, backend=None):
         history_inv_ids = {inv['id'] for inv in history}
         cust_payments = [p for p in db().find('payments',sort=[('date',-1)]) if p.get('invoice_id') in history_inv_ids] if history else []
         cust_proposals = [p for p in db().find('proposals',{'customer_id':profile['id'],'deleted':{'$ne':True}},sort=[('created_at',-1)])] if profile else []
-        return render_template('customers.html',title='Customers',rows=rows,edit=edit,history=history,profile=profile,cust_payments=cust_payments,cust_proposals=cust_proposals)
+        referral_events=db().find('audit_events',{'entity':'referral','entity_id':profile['id']},sort=[('id',-1)],limit=100) if profile else []
+        for event in referral_events: event['reward']=json.loads(event['details'])
+        return render_template('customers.html',referral_customers=rows,referral_events=referral_events,title='Customers',rows=rows,edit=edit,history=history,profile=profile,cust_payments=cust_payments,cust_proposals=cust_proposals)
 
     def import_products():
         from product_import import read_products
@@ -731,6 +736,10 @@ def create_app(database=None, backend=None):
                 else:
                     customer=owned('customers',request.form.get('customer',''))
                     if customer['archived']: raise ValueError('Choose an active customer.')
+                if old and old['customer_id']!=customer['id']:
+                    previous_customer=db().one('customers',{'id':old['customer_id']})
+                    if previous_customer and previous_customer['data'].get('referral_awarded_invoice')==old['id']:
+                        raise ValueError('Keep the customer on an invoice that already earned a referral reward.')
                 customer['data']=dict(customer['data'])
                 kind=request.form.get('type','NON-GST')
                 if kind not in ('GST','NON-GST'): raise ValueError('Invalid invoice type.')
@@ -763,7 +772,9 @@ def create_app(database=None, backend=None):
                             if line.get('product_id'): totals[line['product_id']]=totals.get(line['product_id'],0)+primary_quantity(line)
                         return totals
                     if stock_totals(items)!=stock_totals(source['items']): raise ValueError('Dispatched product quantities must match the delivery challan.')
-                totals=calculate(items,kind,business['state'].strip().lower()!=customer['data']['state'].strip().lower(),common_discount=money(request.form.get('common_discount') or '0') if 'common_discount' in request.form else None,round_total=request.form.get('round_total')=='1',manual_round_off=manual_rounding(request.form.get('manual_round_off')))
+                referral_points,referral_discount=redemption(db(),customer,request.form,business,old,money)
+                common=money(request.form.get('common_discount') or '0') if 'common_discount' in request.form else None
+                totals=calculate(items,kind,business['state'].strip().lower()!=customer['data']['state'].strip().lower(),common_discount=(common or 0)+referral_discount if common is not None or referral_discount else None,round_total=request.form.get('round_total')=='1',manual_round_off=manual_rounding(request.form.get('manual_round_off')))
                 if totals['total']>9_000_000_000_000_000: raise ValueError('Invoice total exceeds the supported financial limit.')
                 received=money(request.form.get('received','0')) if not old else old['received']
                 if received>totals['total']: raise ValueError('Received amount cannot exceed invoice total. Resolve existing payments before reducing the invoice.')
@@ -794,7 +805,7 @@ def create_app(database=None, backend=None):
                     snapshot['business']=business;snapshot['print_account']=account['id']
                 for k in ('installation','service'):
                     if snapshot[k]: date.fromisoformat(snapshot[k])
-                values=dict(customer_id=customer['id'],date=day,type=kind,snapshot=snapshot,**totals)
+                values=dict(customer_id=customer['id'],date=day,type=kind,snapshot=snapshot,referral_points=referral_points,referral_discount=referral_discount,**totals)
                 if old:
                     for item in old['items']:
                         if item['product_id'] and primary_quantity(item): move(item['product_id'],primary_quantity(item),'Invoice edit reversal',old['id'])
@@ -819,6 +830,8 @@ def create_app(database=None, backend=None):
                     ledger=account_key(db(),request.form.get('ledger_account'),'Cash' if method=='Cash' else 'Other' if method=='Other' else 'Bank',day)
                     pid=db().insert('payments',dict(invoice_id=iid,amount=received,date=day,method=method,ledger_account=ledger,reference='',notes='Initial payment'))
                     audit('record','payment',pid)
+                apply_redemption(db(),audit,old,dict(values,id=iid))
+                award_first_payment(db(),audit,dict(values,id=iid,status='FINAL'))
                 audit('edit' if old else 'finalize','invoice',iid,json.dumps(dict(previous=old,current=dict(totals=totals,items=items,snapshot=snapshot))))
                 if source:
                     db().update('proposals',{'id':source['id']},dict(status='CONVERTED',invoice_id=iid),inc={'version':1})
@@ -833,8 +846,10 @@ def create_app(database=None, backend=None):
             edit=source; duplicate=True
         customers=db().find('customers',{'archived':0},sort=[('name',1)])
         balances=customer_balances(db(),edit['id'] if edit and not duplicate else None)
-        for customer in customers: customer['previous_balance']=balances.get(customer['id'],0)
-        return render_template('billing.html',title='Create invoice' if not edit or duplicate else 'Edit invoice',products=product_rows(),customers=customers,edit=edit,duplicate=duplicate,submission=secrets.token_hex(32),proposal_source=source,categories=db().find('categories',sort=[('name',1)]))
+        for customer in customers:
+            customer['previous_balance']=balances.get(customer['id'],0)
+            customer['referral_available']=customer['data'].get('referral_points',0)+(edit.get('referral_points',0) if edit and not duplicate and edit['customer_id']==customer['id'] else 0)
+        return render_template('billing.html',referral_customers=customers,title='Create invoice' if not edit or duplicate else 'Edit invoice',products=product_rows(),customers=customers,edit=edit,duplicate=duplicate,submission=secrets.token_hex(32),proposal_source=source,categories=db().find('categories',sort=[('name',1)]))
 
     @app.get('/invoices')
     def invoices():
@@ -858,6 +873,7 @@ def create_app(database=None, backend=None):
         if inv['status']=='FINAL':
             for item in inv['items']:
                 if item['product_id'] and primary_quantity(item): move(item['product_id'],primary_quantity(item),'Invoice cancellation',ident)
+            change_points(db(),audit,inv['customer_id'],inv.get('referral_points',0),ident,'return_points')
             db().update('invoices',{'id':ident},{'status':'CANCELLED'},inc={'version':1})
             audit('cancel','invoice',ident,request.form.get('reason','Cancelled by owner'))
         return inv
@@ -908,6 +924,7 @@ def create_app(database=None, backend=None):
                 else:
                     pid=db().insert('payments',dict(values,invoice_id=inv['id'],version=1,**({'submission':token} if token else {})))
                     audit('record','payment',pid)
+                award_first_payment(db(),audit,inv)
             flash('Payment updated.' if previous else 'Payment recorded.'); return redirect(url_for('view_invoice',ident=inv['id']))
         edit=owned('payments',request.args['edit']) if request.args.get('edit') else None
         if edit and 'payment.record' not in g.access['permissions']: abort(403)
@@ -954,6 +971,9 @@ def create_app(database=None, backend=None):
                 audit('reconcile','inventory',session['business'],'Company administrator confirmed product balances after plan change.')
                 flash('Inventory reconciliation confirmed. Tracked-product billing is available.'); return redirect(url_for('settings_page'))
             data=settings()
+            mode=request.form.get('referral_mode',data.get('referral_mode','FIXED'))
+            if mode not in ('FIXED','MANUAL'): raise ValueError('Choose fixed or manual referral discount.')
+            data.update(referral_mode=mode,referral_value=money(request.form.get('referral_value',str(data.get('referral_value',0)/100)) or '0'))
             for k in DEFAULTS:
                 if k not in ('logo','signature','negative_stock'): data[k]=request.form.get(k,'').strip()
             if not data['name'] or not data['state']: raise ValueError('Business name and state are required.')

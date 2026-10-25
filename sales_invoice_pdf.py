@@ -81,8 +81,10 @@ def build_sales_invoice_pdf(inv):
         values=[p(''),p(item['name']+('\nHSN/SAC: '+item['hsn'] if item.get('hsn') else ''),right),p('-',center),p('-',right)]
         if columns_gst: values.append(p(f"{item['gst']}%\n{money(item['tax'])}",right))
         values.append(p(money(line_rate_amount(item)),right)); rows.append(values)
-    if inv['discount']:
-        rows.append([p(''),p('Discount',right)]+[p('') for _ in headings[2:-1]]+[p(money(inv['discount']),right)])
+    if inv['discount']-inv.get('referral_discount',0):
+        rows.append([p(''),p('Discount',right)]+[p('') for _ in headings[2:-1]]+[p(money(inv['discount']-inv.get('referral_discount',0)),right)])
+    if inv.get('referral_discount'):
+        rows.append([p(''),p('Referral discount',right)]+[p('') for _ in headings[2:-1]]+[p(money(inv['referral_discount']),right)])
     if gst:
         for label,key in [('Taxable amount','taxable'),('CGST','cgst'),('SGST','sgst'),('IGST','igst')]:
             if key!='taxable' and not inv[key]: continue
@@ -159,8 +161,9 @@ def build_thermal_pdf(inv,theme):
         if gst and preferences.get('show_gst_columns',True): label+=f"\nGST {item['gst']}%: {amount(item['tax'])}"
         if not item.get('is_charge'): label+=f"\nMRP: {amount(item['mrp'])} ({mrp_discount(item)}% OFF)"
         rows.append([p(label),p(amount(line_rate_amount(item)))])
-    for label,key in [('Discount','discount'),('CGST','cgst'),('SGST','sgst'),('IGST','igst'),('Round off','round_off'),('Total','total'),('Credit notes','credit'),('Refunded','refunded'),('Received','received'),('Balance','balance')]:
-        if key in inv and (key not in ('discount','cgst','sgst','igst','round_off','credit','refunded') or inv[key]): rows.append([p(label,key=='total'),p(amount(inv[key]),key=='total')])
+    for label,key in [('Discount','discount'),('Referral discount','referral_discount'),('CGST','cgst'),('SGST','sgst'),('IGST','igst'),('Round off','round_off'),('Total','total'),('Credit notes','credit'),('Refunded','refunded'),('Received','received'),('Balance','balance')]:
+        value=inv.get(key,0)-inv.get('referral_discount',0) if key=='discount' else inv.get(key,0)
+        if key in inv and (key not in ('referral_discount','discount','cgst','sgst','igst','round_off','credit','refunded') or value): rows.append([p(label,key=='total'),p(amount(value),key=='total')])
     table=Table(rows,colWidths=[usable*.62,usable*.38],repeatRows=1,hAlign='LEFT',splitInRow=1)
     table.setStyle(TableStyle([('VALIGN',(0,0),(-1,-1),'TOP'),('LEFTPADDING',(0,0),(-1,-1),1),('RIGHTPADDING',(0,0),(-1,-1),1),('LINEBELOW',(0,0),(-1,0),.5,colors.black)]))
     if layout=='CLASSIC': table.setStyle(TableStyle([('BOX',(0,0),(-1,-1),.5,colors.black)]))

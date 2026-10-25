@@ -251,7 +251,13 @@
     <div class="stitch-summary-card" data-purpose="invoice-summary-card">
       <h3 class="stitch-summary-header"><span class="billing-summary-symbol" aria-hidden="true">▤</span> Invoice summary</h3>
       {% if trade_ready %}<label>PO number<input name="po_number" value="{{ edit.snapshot.get('po_number','') if edit else '' }}"></label><label>E-way bill number<input name="eway_bill" inputmode="numeric" pattern="[0-9]{12}" maxlength="12" value="{{ edit.snapshot.get('eway_bill','') if edit else '' }}"><small>Record an existing number; this does not generate an e-way bill.</small></label><label>Vehicle number<input name="vehicle_number" value="{{ edit.snapshot.get('vehicle_number','') if edit else '' }}"></label>{% endif %}<div class="summary-options">
-        <details {{ 'open' if edit and edit.discount else '' }}><summary class="secondary">＋ Discount</summary><label for="common-discount">Common discount amount ₹</label><input id="common-discount" name="common_discount" type="number" min="0" step="0.01" value="{{ edit.discount/100 if edit else 0 }}"><small>Before GST, across items. Additional charges are excluded.</small></details>
+        <div class="panel padded"><strong id="referral-balance" role="status">Referral points: 0 available</strong>
+        <details><summary class="secondary">+ Referral discount</summary>
+        <label>Points to use<input id="referral-points" name="referral_points" type="number" min="0" max="1000000" step="1" value="{{ edit.get('referral_points',0) if edit and not duplicate else 0 }}"></label>
+        <label>Referral discount amount INR<input id="referral-amount" name="referral_amount" type="number" min="0" step="0.01" {{ 'readonly' if business.get('referral_mode','FIXED')=='FIXED' else '' }} value="{{ edit.get('referral_discount',0)/100 if edit and not duplicate else 0 }}"></label>
+        <small>{{ 'Fixed value: INR ' ~ (business.get('referral_value',0)/100) ~ ' per point.' if business.get('referral_mode','FIXED')=='FIXED' else 'Enter the points and discount amount.' }} Deducted only when saved; returned on cancellation or Trash.</small>
+        </details></div>
+        <details {{ 'open' if edit and edit.discount else '' }}><summary class="secondary">＋ Discount</summary><label for="common-discount">Common discount amount ₹</label><input id="common-discount" name="common_discount" type="number" min="0" step="0.01" value="{{ (edit.discount-edit.get('referral_discount',0))/100 if edit else 0 }}"><small>Before GST, across items. Additional charges are excluded.</small></details>
         <button type="button" id="additional-charge" class="secondary">＋ Additional charge</button>
         <div id="charge-rows"></div>
         <label class="checkbox"><input type="checkbox" id="round-total" name="round_total" value="1" {{ 'checked' if edit and edit.snapshot.get('round_total') else '' }}> Round total to nearest rupee</label>

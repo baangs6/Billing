@@ -82,6 +82,9 @@ def reset_sections(backend, ms, scope, selected):
     if 'purchases' in selected: database.trade_payments.delete_many(query({'supplier_id':{'$exists':True}}),session=ms)
     if 'payments' in selected: database.trade_payments.delete_many(query({'customer_id':{'$exists':True}}),session=ms)
     if 'invoices' in selected: database.trade_payments.delete_many(query({'kind':'CUSTOMER_REFUND'}),session=ms)
+    if 'invoices' in selected and 'customers' not in selected:
+        for inv in database.invoices.find(query({'status':'FINAL','referral_points':{'$gt':0}}),session=ms):
+            database.customers.update_one(query({'id':inv['customer_id']}),{'$inc':{'data.referral_points':inv['referral_points']}},session=ms)
     for name in sorted(collections): database[name].delete_many(scope,session=ms)
     if 'inventory' in selected:
         if 'products' in selected: database.inventory.delete_many(scope,session=ms)
