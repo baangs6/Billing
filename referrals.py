@@ -35,14 +35,14 @@ def redemption(db,customer,form,business,old,money):
     return points,amount
 
 
-def change_points(db,audit,customer_id,delta,invoice_id,reason):
+def change_points(db,audit,customer_id,delta,invoice_id,reason,note=''):
     if not delta: return
     customer=db.one('customers',{'id':customer_id})
     if not customer: raise ValueError('Referral customer no longer exists.')
     balance=customer['data'].get('referral_points',0)+delta
     if balance<0: raise ValueError('Not enough referral points.')
     db.update('customers',{'id':customer_id},{'data.referral_points':balance})
-    audit(reason,'referral',customer_id,json.dumps(dict(points=delta,balance=balance,invoice_id=invoice_id)))
+    return audit(reason,'referral',customer_id,json.dumps(dict(points=delta,balance=balance,invoice_id=invoice_id,note=note)))
 
 
 def apply_redemption(db,audit,old,current):
@@ -66,3 +66,18 @@ def award_first_payment(db,audit,inv):
     if paid<inv['total']: return
     db.update('customers',{'id':customer['id']},{'data.referral_awarded_invoice':inv['id']})
     change_points(db,audit,referrer,1,inv['id'],'earn')
+
+
+def manual_points(db,audit,customer,form):
+    token=form.get('submission','')
+    if len(token)!=64 or any(c not in '0123456789abcdef' for c in token):
+        raise ValueError('Refresh the customer page before adding points.')
+    if db.one('audit_events',{'entity':'referral','entity_id':customer['id'],'submission':token}): return
+    if customer.get('archived'): raise ValueError('Choose an active customer.')
+    try: points=int(form.get('points',''))
+    except ValueError: raise ValueError('Enter a whole number of referral points.')
+    if not 1<=points<=1000000: raise ValueError('Add between 1 and 1,000,000 referral points.')
+    note=form.get('reason','').strip()
+    if not note or len(note)>300: raise ValueError('Enter a reason of up to 300 characters.')
+    event=change_points(db,audit,customer['id'],points,None,'manual_add',note)
+    db.update('audit_events',{'id':event},{'submission':token})

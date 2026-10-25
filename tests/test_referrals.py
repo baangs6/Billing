@@ -95,3 +95,33 @@ def test_referral_label_and_amount_in_customer_pdf(theme):
         text=''.join(page.get_text() for page in doc)
         assert 'Referral discount' in text and '10.00' in text
         assert '\nDiscount\n' not in text
+
+
+def test_manual_referral_entry_replay_validation_and_permissions(workspace):
+    import re
+    client,post,db=workspace
+    page=client.get('/customers?view=1')
+    assert page.status_code==200 and b'Add referral points manually' in page.data
+    token=re.search(rb'name="submission" value="([0-9a-f]{64})"',page.data).group(1).decode()
+    entry=dict(action='referral_points',id='1',submission=token,points='3',reason='Referral recorded offline')
+    assert post('/customers',entry).status_code==302
+    assert points(db)==3
+    post('/customers',entry)
+    assert points(db)==3
+    events=list(db.database.audit_events.find({'entity':'referral','action':'manual_add'}))
+    assert len(events)==1 and events[0]['user_id']==1
+    reward=json.loads(events[0]['details'])
+    assert reward['points']==3 and reward['balance']==3 and reward['note']=='Referral recorded offline'
+    assert b'Referral recorded offline' in client.get('/customers?view=1').data
+    import secrets
+    for changes in [dict(points='0'),dict(points='-1'),dict(points='1.5'),dict(points='1000001'),dict(reason=''),dict(submission='invalid')]:
+        post('/customers',entry|dict(submission=secrets.token_hex(32))|changes)
+        assert points(db)==3
+    db.database.customers.insert_one(dict(id=999,business_id=999,name='Other company',data={},archived=0))
+    assert post('/customers',entry|dict(id='999')).status_code==404
+    assert points(db)==3
+    role=db.database.users.find_one({'id':1})['role_id']
+    db.database.roles.update_one({'id':role},{'$pull':{'permissions':'customer.manage'}})
+    assert b'Add referral points manually' not in client.get('/customers?view=1').data
+    assert post('/customers',entry|dict(submission=secrets.token_hex(32))).status_code==403
+    assert points(db)==3

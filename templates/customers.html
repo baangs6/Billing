@@ -348,8 +348,18 @@
 {# ========================================================================= #}
 {% elif profile %}
 <section class="panel padded" id="customer-profile"><h2>Referral points history</h2><p>Available: {{ profile.data.get('referral_points',0) }} points</p>
+{% if 'customer.manage' in policy.permissions and not profile.archived %}
+<details><summary class="secondary">+ Add referral points manually</summary>
+<form method="post" class="form-grid padded">
+<input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="referral_points"><input type="hidden" name="id" value="{{ profile.id }}"><input type="hidden" name="submission" value="{{ referral_submission }}">
+<label>Points to add<input type="number" name="points" min="1" max="1000000" step="1" required value="1"></label>
+<label>Reason<input name="reason" required maxlength="300" placeholder="For example: referral recorded offline"></label>
+<div class="full"><button type="submit" class="primary">Save points</button><small>Added to this customer's available referral balance immediately.</small></div>
+</form></details>
+{% endif %}
+
 {% for ref in rows %}{% if ref.id==profile.data.get('referred_by') %}<p>Referred by: {{ ref.name }}</p>{% endif %}{% endfor %}
-<div class="table-wrap"><table><thead><tr><th>Date (UTC)</th><th>Action</th><th>Points</th><th>Balance</th><th>Invoice</th></tr></thead><tbody>{% for event in referral_events %}<tr><td>{{ event.created_at }}</td><td>{{ event.action|replace('_',' ') }}</td><td>{{ event.reward.points }}</td><td>{{ event.reward.balance }}</td><td>#{{ event.reward.invoice_id }}</td></tr>{% else %}<tr><td colspan="5">No points earned or used yet.</td></tr>{% endfor %}</tbody></table></div></section>
+<div class="table-wrap"><table><thead><tr><th>Date (UTC)</th><th>Action</th><th>Points</th><th>Balance</th><th>Invoice</th><th>Reason</th></tr></thead><tbody>{% for event in referral_events %}<tr><td>{{ event.created_at }}</td><td>{{ event.action|replace('_',' ') }}</td><td>{{ event.reward.points }}</td><td>{{ event.reward.balance }}</td><td>{{ "#" ~ event.reward.invoice_id if event.reward.invoice_id else "—" }}</td><td>{{ event.reward.get("note","") }}</td></tr>{% else %}<tr><td colspan="6">No points earned or used yet.</td></tr>{% endfor %}</tbody></table></div></section>
   <div class="stitch-breadcrumbs">
     <a href="/customers">Workspace</a>
     <span class="sep">/</span>

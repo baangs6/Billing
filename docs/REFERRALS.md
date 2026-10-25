@@ -11,3 +11,5 @@ Saving, changing customers, editing points and cancellation update balances with
 Earned points remain earned after later payment corrections or refunds; there is no automatic negative balance or reward clawback. A customer cannot be moved off an invoice that already earned a referral reward. Customer profile history shows the latest 100 earn/redeem/return events, also retained in the audit trail. Existing permissions govern customer links, settings, invoice creation/editing and payments.
 
 Verification: tests/test_referrals.py covers earning, first-invoice eligibility, replay, fixed/manual redemption, insufficient balance, rollback, edit, Trash/restore, self/invalid referrals, referrer locking, and customer PDF formats. No production records are used for tests.
+
+Customer managers can add manual points from Customers > customer profile > Referral points history. A positive whole-number amount and a reason are required. Entries are tenant-scoped, transactional, audited, and protected against replay of the same submission. Manual awards are separate from the automatic first-paid-invoice award.

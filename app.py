@@ -24,7 +24,7 @@ from billing_options import due_date, manual_rounding, customer_balances
 from accounts import account_key
 from accounting_reports import REPORT_TYPES as ACCOUNTING_REPORT_TYPES
 from report_totals import report_period,total_row
-from referrals import referral_customer,redemption,apply_redemption,change_points,award_first_payment
+from referrals import referral_customer,redemption,apply_redemption,change_points,award_first_payment,manual_points
 from product_units import line_units,line_pricing,primary_quantity,product_options,rate_text
 from saas import access, quota, seed_roles, Platform, PERMISSIONS, FEATURES, local_month, stamp, subscription_state, month_add
 
@@ -138,7 +138,7 @@ def create_app(database=None, backend=None):
         return dict(row)
 
     def audit(action, entity, ident, details=''):
-        db().insert('audit_events',dict(user_id=session['user'],action=action,entity=entity,entity_id=ident,details=details))
+        return db().insert('audit_events',dict(user_id=session['user'],action=action,entity=entity,entity_id=ident,details=details))
 
     def invoice(ident):
         inv = owned('invoices',ident)
@@ -447,6 +447,11 @@ def create_app(database=None, backend=None):
     def customers():
         if request.method=='POST':
             ident=request.form.get('id'); action=request.form.get('action','save')
+            if action=='referral_points':
+                if not ident: raise ValueError('Choose a customer for manual points.')
+                manual_points(db(),audit,owned('customers',ident),request.form)
+                flash('Referral points entry saved.')
+                return redirect(url_for('customers',view=ident)+'#customer-profile')
             if ident: owned('customers',ident)
             with db():
                 if action=='delete':
@@ -501,7 +506,7 @@ def create_app(database=None, backend=None):
         cust_proposals = [p for p in db().find('proposals',{'customer_id':profile['id'],'deleted':{'$ne':True}},sort=[('created_at',-1)])] if profile else []
         referral_events=db().find('audit_events',{'entity':'referral','entity_id':profile['id']},sort=[('id',-1)],limit=100) if profile else []
         for event in referral_events: event['reward']=json.loads(event['details'])
-        return render_template('customers.html',referral_customers=rows,referral_events=referral_events,title='Customers',rows=rows,edit=edit,history=history,profile=profile,cust_payments=cust_payments,cust_proposals=cust_proposals)
+        return render_template('customers.html',referral_submission=secrets.token_hex(32),referral_customers=rows,referral_events=referral_events,title='Customers',rows=rows,edit=edit,history=history,profile=profile,cust_payments=cust_payments,cust_proposals=cust_proposals)
 
     def import_products():
         from product_import import read_products
