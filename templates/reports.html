@@ -31,6 +31,7 @@
         </tr>
         {% endfor %}
       </tbody>
+      <tfoot class="report-totals"><tr>{% for cell in totals %}<td><strong>{{ cell }}</strong></td>{% endfor %}</tr></tfoot>
     </table>
   </div>
 </article>

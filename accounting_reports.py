@@ -1,9 +1,9 @@
 """Reconciled management exports; not a GST filing integration."""
 import csv
 import io
-from datetime import date
 from decimal import Decimal
 from collections import defaultdict
+from report_totals import report_period,total_row
 from flask import abort,g,request,render_template,Response,send_file
 
 REPORT_TYPES=('Purchases','Receivables','Payables','Sales credit notes','Purchase debit notes','HSN sales','GST summary','Stock valuation')
@@ -12,9 +12,7 @@ REPORT_TYPES=('Purchases','Receivables','Payables','Sales credit notes','Purchas
 def install_accounting_reports(app,db,money,today,products,pdf):
     @app.get('/accounting-reports')
     def accounting_reports():
-        kind=request.args.get('report','Purchases');start=request.args.get('from',today()[:4]+'-01-01');end=request.args.get('to',today())
-        date.fromisoformat(start);date.fromisoformat(end)
-        if start>end: raise ValueError('Start date must precede end date.')
+        kind=request.args.get('report','Purchases');start,end=report_period(request.args,today())
         if not g.access['features'].get('reports'): abort(403)
         kinds=REPORT_TYPES
         if kind not in kinds: raise ValueError('Choose a report.')
@@ -71,22 +69,23 @@ def install_accounting_reports(app,db,money,today,products,pdf):
                 rows.append([label,*[f'{Decimal(values[k])/100:.2f}' for k in keys]])
         else:
             if not g.access['features'].get('inventory') or 'inventory.view' not in g.access['permissions']: abort(403)
-            headers=['Product','SKU','Stock units','Catalog cost INR','Value INR']
-            rows=[[p['name'],p['sku'],f"{Decimal(p['quantity'])/1000:g}",f"{Decimal(p['purchase_price'])/100:.2f}",f"{Decimal(p['quantity'])*p['purchase_price']/100000:.2f}"] for p in products()]
+            headers=['Product','SKU','Stock units','Catalog cost INR','Value INR','Unit']
+            rows=[[p['name'],p['sku'],f"{Decimal(p['quantity'])/1000:g}",f"{Decimal(p['purchase_price'])/100:.2f}",f"{Decimal(p['quantity'])*p['purchase_price']/100000:.2f}",p['data'].get('unit','')] for p in products()]
+        totals=total_row(kind,headers,rows)
         format=request.args.get('export')
         if format:
             if 'report.export' not in g.access['permissions']: abort(403)
             if format=='pdf':
                 if not g.access['features'].get('pdf'): abort(403)
-                return Response(pdf(kind,[[headers]+rows]),mimetype='application/pdf',headers={'Content-Disposition':'attachment; filename=accounting-report.pdf'})
+                return Response(pdf(kind+' | '+start+' to '+end,[[headers]+rows+[totals]]),mimetype='application/pdf',headers={'Content-Disposition':'attachment; filename=accounting-report.pdf'})
             if format=='xlsx':
                 from openpyxl import Workbook
                 workbook=Workbook();sheet=workbook.active;sheet.append(headers)
-                for row in rows: sheet.append(["'"+v if isinstance(v,str) and v.startswith(('=','+','-','@')) else v for v in row])
+                for row in rows+[totals]: sheet.append(["'"+v if isinstance(v,str) and v.startswith(('=','+','-','@')) else v for v in row])
                 output=io.BytesIO();workbook.save(output);output.seek(0)
                 return send_file(output,mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',as_attachment=True,download_name='accounting-report.xlsx')
             if format!='csv': raise ValueError('Choose CSV, XLSX or PDF.')
-            output=io.StringIO();writer=csv.writer(output);writer.writerow(headers);writer.writerows([["'"+v if isinstance(v,str) and v.startswith(('=','+','-','@')) else v for v in row] for row in rows])
+            output=io.StringIO();writer=csv.writer(output);writer.writerow(headers);writer.writerows([["'"+v if isinstance(v,str) and v.startswith(('=','+','-','@')) else v for v in row] for row in rows+[totals]])
             return Response('\ufeff'+output.getvalue(),mimetype='text/csv',headers={'Content-Disposition':'attachment; filename=accounting-report.csv'})
-        return render_template('accounting_reports.html',title='Reports',kind=kind,kinds=kinds,start=start,end=end,headers=headers,rows=rows)
+        return render_template('accounting_reports.html',title='Reports',kind=kind,kinds=kinds,start=start,end=end,headers=headers,rows=rows,totals=totals)
     return {'accounting_reports':('report.view',None)}

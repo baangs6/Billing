@@ -23,6 +23,7 @@ from company_profile import header_fields
 from billing_options import due_date, manual_rounding, customer_balances
 from accounts import account_key
 from accounting_reports import REPORT_TYPES as ACCOUNTING_REPORT_TYPES
+from report_totals import report_period,total_row
 from product_units import line_units,line_pricing,primary_quantity,product_options,rate_text
 from saas import access, quota, seed_roles, Platform, PERMISSIONS, FEATURES, local_month, stamp, subscription_state, month_add
 
@@ -234,6 +235,8 @@ def create_app(database=None, backend=None):
         db().rollback();
         if request.endpoint in ('billing_product','billing_customer') or (request.endpoint=='accounts_page' and request.accept_mimetypes.best=='application/json'): return {'error':str(error)},400
         flash(str(error),'error')
+        if request.endpoint in ('reports','accounting_reports'):
+            return render_template('reports.html',title='Reports',kind=request.args.get('report','Sales'),start=today()[:4]+'-01-01',end=today(),headers=['Report'],rows=[],totals=['No report generated']),400
         return redirect(request.referrer if request.referrer and request.referrer.startswith(request.host_url) else url_for('dashboard'))
 
     @app.errorhandler(DuplicateKeyError)
@@ -1035,36 +1038,47 @@ def create_app(database=None, backend=None):
     def reports():
         if request.args.get('report') in ACCOUNTING_REPORT_TYPES:
             return redirect(url_for('accounting_reports',**{key:value for key,value in request.args.items() if value}))
-        kind=request.args.get('report','Sales'); invoices=[i for i in all_invoices() if i['status']=='FINAL']
+        kind=request.args.get('report','Sales')
+        if kind not in SALES_REPORT_TYPES: raise ValueError('Choose a valid report.')
+        start,end=report_period(request.args,today(),kind)
+        invoices=[i for i in all_invoices() if i['status']=='FINAL' and start<=i['date']<=end]
         headers=['Invoice','Date','Customer','Total (INR)','Received (INR)','Balance (INR)']; rows=[]
         if kind in ('Inventory','Low stock'):
             headers=['Product','SKU','Category','Stock','Minimum','Unit']
-            rows=[[p['name'],p['sku'],p['data']['category'],p['quantity']/1000,p['data']['min_stock']/1000,p['data']['unit']] for p in product_rows() if kind!='Low stock' or p['quantity']<=p['data']['min_stock']]
+            rows=[[p['name'],p['sku'],p['data']['category'],Decimal(p['quantity'])/1000,Decimal(p['data']['min_stock'])/1000,p['data']['unit']] for p in product_rows() if kind!='Low stock' or p['quantity']<=p['data']['min_stock']]
         elif kind in ('Collections','Stock movement','Product sales'):
             if kind=='Collections':
-                headers=['Date','Invoice','Method','Amount (INR)','Reference']; data=payment_rows(); rows=[[r['date'],r['number'],r['method'],r['amount']/100,r['reference']] for r in data if (not request.args.get('from') or r['date']>=request.args['from']) and (not request.args.get('to') or r['date']<=request.args['to'])]
+                headers=['Date','Invoice','Method','Amount (INR)','Reference']; data=payment_rows(); rows=[[r['date'],r['number'],r['method'],Decimal(r['amount'])/100,r['reference']] for r in data if start<=r['date']<=end]
             elif kind=='Stock movement':
-                headers=['Date','Product','Quantity','Reason']; data=movement_rows(); rows=[[r['created_at'],r['name'],r['quantity']/1000,r['reason']] for r in data if (not request.args.get('from') or r['created_at'][:10]>=request.args['from']) and (not request.args.get('to') or r['created_at'][:10]<=request.args['to'])]
+                headers=['Date','Product','Quantity','Reason','Unit']; data=movement_rows();units={p['id']:p['data'].get('unit','') for p in product_rows()}; rows=[[r['created_at'],r['name'],Decimal(r['quantity'])/1000,r['reason'],units.get(r['product_id'],'')] for r in data if start<=r['created_at'][:10]<=end]
             else:
                 headers=['Product','Quantity','Unit','Sales (INR)']; aggregate={}
                 for inv in invoices:
                     for item in invoice(inv['id'])['items']:
                         unit=item.get('primary_unit',item['unit']) if item.get('product_id') and not item.get('is_service') else item['unit']
-                        k=(item['product_id'],item['name'],unit); a=aggregate.setdefault(k,[item['name'],0,unit,0]); a[1]+=(primary_quantity(item) if item.get('product_id') and not item.get('is_service') else item['quantity'])/1000; a[3]+=item['total']/100
+                        k=(item['product_id'],item['name'],unit); a=aggregate.setdefault(k,[item['name'],0,unit,0]); a[1]+=Decimal(primary_quantity(item) if item.get('product_id') and not item.get('is_service') else item['quantity'])/1000; a[3]+=Decimal(item['total'])/100
                 rows=list(aggregate.values())
         else:
-            if kind=='Daily sales': invoices=[i for i in invoices if i['date']==request.args.get('from',today())]
-            if kind=='Monthly sales': invoices=[i for i in invoices if i['date'][:7]==request.args.get('from',today())[:7]]
+            if kind=='Daily sales': invoices=[i for i in invoices if i['date']==start]
+            if kind=='Monthly sales': invoices=[i for i in invoices if i['date'][:7]==start[:7]]
             if kind=='GST sales': invoices=[i for i in invoices if i['type']=='GST']
             if kind=='Non-GST sales': invoices=[i for i in invoices if i['type']=='NON-GST']
             if kind=='Outstanding': invoices=[i for i in invoices if i['balance']>0]
-            rows=[[i['number'],i['date'],i['customer'],i['total']/100,i['received']/100,i['balance']/100] for i in invoices]
+            rows=[[i['number'],i['date'],i['customer'],format(Decimal(i['total'])/100,'.2f'),format(Decimal(i['received'])/100,'.2f'),format(Decimal(i['balance'])/100,'.2f')] for i in invoices]
+        totals=total_row(kind,headers,rows)
+        if request.args.get('export')=='xlsx':
+            from openpyxl import Workbook
+            workbook=Workbook();sheet=workbook.active;sheet.append(headers)
+            for row in rows+[totals]: sheet.append([csv_safe(format(value,'f') if isinstance(value,Decimal) else value) for value in row])
+            output=io.BytesIO();workbook.save(output);output.seek(0)
+            return send_file(output,mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',as_attachment=True,download_name='report.xlsx')
+        if request.args.get('export') not in (None,'','csv','xlsx','pdf'): raise ValueError('Choose CSV, XLSX or PDF.')
         if request.args.get('export')=='csv':
             output=io.StringIO(); writer=csv.writer(output)
             def safe(v): return "'"+v if isinstance(v,str) and v.startswith(('=','+','-','@')) else v
-            writer.writerow(headers); writer.writerows([[safe(v) for v in r] for r in rows]); return Response('\ufeff'+output.getvalue(),mimetype='text/csv',headers={'Content-Disposition':'attachment; filename=report.csv'})
-        if request.args.get('export')=='pdf': return Response(pdf_document(kind,[[headers]+rows]),mimetype='application/pdf',headers={'Content-Disposition':'attachment; filename=report.pdf'})
-        return render_template('reports.html',title='Reports',headers=headers,rows=rows,kind=kind)
+            writer.writerow(headers); writer.writerows([[safe(v) for v in r] for r in rows+[totals]]); return Response('\ufeff'+output.getvalue(),mimetype='text/csv',headers={'Content-Disposition':'attachment; filename=report.csv'})
+        if request.args.get('export')=='pdf': return Response(pdf_document(kind+' | '+start+' to '+end,[[headers]+rows+[totals]]),mimetype='application/pdf',headers={'Content-Disposition':'attachment; filename=report.pdf'})
+        return render_template('reports.html',title='Reports',headers=headers,rows=rows,totals=totals,kind=kind,start=start,end=end)
 
     @app.errorhandler(PyMongoError)
     def database_unavailable(error):

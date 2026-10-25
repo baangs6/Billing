@@ -86,3 +86,6 @@ Clean default invoice (2026-10-25): supplied browser-print reference was inspect
 
 
 3-inch thermal shortcut (2026-10-25): invoice toolbar provides Print and Download 3-inch thermal actions using existing 80mm renderer. Default clean A4 stays available. Route regression passed in 32.78 seconds for inline/download headers, 227pt paper width, item contents and unchanged invoice snapshots. Physical printer calibration was not tested.
+
+
+Reports completion (2026-10-25): fixed blank date parsing and daily/monthly defaults; report validation errors stay on Reports instead of redirecting to Dashboard. Added exact, explicit totals to all 19 report types in HTML/CSV/XLSX/PDF, including legacy Excel exports. Quantity totals stay grouped by unit and cost/price/IDs are not summed. GST summary net sales-minus-purchases is labelled as management difference. Five selected tests passed in 104.04 seconds; the report matrix covers 76 HTML/export combinations with populated returns, blank dates, empty periods and known totals. Also checked permission boundaries and exact large values. Browser QA submitted blank dates via Run report and confirmed purchase records/totals. See REPORTS.md. No real financial test records created.

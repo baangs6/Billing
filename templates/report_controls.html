@@ -18,7 +18,7 @@
   <button class="primary" type="submit">Run report</button>
   {% if 'report.export' in policy.permissions %}
     <button name="export" value="csv" class="secondary">Export CSV</button>
-    {% if request.endpoint=='accounting_reports' %}<button name="export" value="xlsx" class="secondary">Export Excel</button>{% endif %}
+    <button name="export" value="xlsx" class="secondary">Export Excel</button>
     {% if policy.features.pdf %}<button name="export" value="pdf" class="secondary">Export PDF</button>{% endif %}
   {% endif %}
 </form>

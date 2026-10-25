@@ -2921,3 +2921,5 @@ dialog .panel-heading .secondary {
 .custom-header-row{display:grid;grid-template-columns:1fr 2fr auto;gap:12px;align-items:end;margin-bottom:12px}.commerce-page label[hidden]{display:none}@media(max-width:640px){.custom-header-row{grid-template-columns:1fr}}
 
 body[data-gst-registered=false] [data-gst-control]{display:none}
+
+.report-totals td{background:#eff4ff;border-top:2px solid #c7d8f8;font-variant-numeric:tabular-nums;padding:14px 12px}

@@ -1,0 +1,7 @@
+# Report repairs and totals — 25 October 2026
+
+All 19 Reports selections use validated From/To dates and show a total row on screen and in CSV, Excel and PDF. Legacy sales/stock reports now also support Excel. Blank fields resolve to visible defaults (current year through today; today for Daily sales; current month for Monthly sales). Invalid or reversed dates leave a recoverable error on Reports instead of redirecting to Dashboard. Stock and valuation reports remain current snapshots; receivables/payables are as-of To balances.
+
+Totals add monetary columns with Decimal arithmetic. Product/stock quantities are grouped by unit; unit prices, MRP, minimum thresholds, document IDs and dates are not added. Stock movement totals are signed movement quantities grouped by unit. Stock valuation totals include stock quantities by unit and total catalog value. GST summary ends with net sales minus purchases, explicitly labelled as a management difference rather than GST payable or eligible input credit. Empty reports retain zero totals and a record count.
+
+Coverage includes all 19 selections across HTML/CSV/XLSX/PDF (76 route/export checks), populated sales/purchase credit notes, known invoice/payment/balance totals, empty periods, invalid/reversed dates, exact large-money sums, mixed quantity units, report permission boundaries and existing large-amount exports. All test postings use disposable databases, never real company records.
