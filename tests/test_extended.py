@@ -166,9 +166,9 @@ def test_invoice_template_accepts_legacy_optional_totals(workspace):
         html=render_template('invoice.html',title='Legacy invoice',inv=inv,filename='Customer.pdf')
         assert 'Desk lamp' in html and 'Grand total' in html
         for amount in (0,-49):
-            inv.update(credit=abs(amount),refunded=abs(amount),round_off=amount)
+            inv.update(discount=abs(amount),credit=abs(amount),refunded=abs(amount),round_off=amount)
             html=render_template('invoice.html',title='Invoice',inv=inv,filename='Customer.pdf')
-            for label in ('Credit notes','Refunded','Round off'):
+            for label in ('Discount','Credit notes','Refunded','Round off'):
                 assert (('<span>'+label+'</span>') in html)==bool(amount)
 
 

@@ -160,7 +160,7 @@ def build_thermal_pdf(inv,theme):
         if not item.get('is_charge'): label+=f"\nMRP: {amount(item['mrp'])} ({mrp_discount(item)}% OFF)"
         rows.append([p(label),p(amount(line_rate_amount(item)))])
     for label,key in [('Discount','discount'),('CGST','cgst'),('SGST','sgst'),('IGST','igst'),('Round off','round_off'),('Total','total'),('Credit notes','credit'),('Refunded','refunded'),('Received','received'),('Balance','balance')]:
-        if key in inv and (key not in ('cgst','sgst','igst','round_off','credit','refunded') or inv[key]): rows.append([p(label,key=='total'),p(amount(inv[key]),key=='total')])
+        if key in inv and (key not in ('discount','cgst','sgst','igst','round_off','credit','refunded') or inv[key]): rows.append([p(label,key=='total'),p(amount(inv[key]),key=='total')])
     table=Table(rows,colWidths=[usable*.62,usable*.38],repeatRows=1,hAlign='LEFT',splitInRow=1)
     table.setStyle(TableStyle([('VALIGN',(0,0),(-1,-1),'TOP'),('LEFTPADDING',(0,0),(-1,-1),1),('RIGHTPADDING',(0,0),(-1,-1),1),('LINEBELOW',(0,0),(-1,0),.5,colors.black)]))
     if layout=='CLASSIC': table.setStyle(TableStyle([('BOX',(0,0),(-1,-1),.5,colors.black)]))

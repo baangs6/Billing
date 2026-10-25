@@ -119,7 +119,7 @@
           <th>Item{% if inv.type == 'GST' %} / HSN{% endif %}</th>
           <th>Qty</th>
           <th>MRP</th>
-          {% if 'common_discount' not in inv %}<th>Discount</th>{% endif %}
+          {% if 'common_discount' not in inv and inv.get('discount',0) %}<th>Discount</th>{% endif %}
           {% if inv.type == 'GST' %}<th>GST / Tax</th>{% endif %}
           <th style="text-align:right">Amount</th>
         </tr>
@@ -134,7 +134,7 @@
           </td>
           <td>{% if item.get('is_charge') %}-{% else %}{{ item.quantity|qty }} {{ item.unit }}{% endif %}</td>
           <td>{% if item.get('is_charge') %}-{% else %}{{ item.mrp|inr }}<small>({{ item|mrp_discount }}% off)</small>{% endif %}</td>
-          {% if 'common_discount' not in inv %}<td>{% if item.get('is_charge') %}-{% else %}{{ item.discount|inr }}{% endif %}</td>{% endif %}
+          {% if 'common_discount' not in inv and inv.get('discount',0) %}<td>{% if item.get('is_charge') %}-{% else %}{{ item.discount|inr }}{% endif %}</td>{% endif %}
           {% if inv.type == 'GST' %}
             <td>{{ item.gst }}%<small>{{ item.tax|inr }}</small></td>
           {% endif %}
@@ -147,7 +147,7 @@
 
   <div class="invoice-totals">
     {% for label, key in [('Subtotal','subtotal'),('Discount','discount'),('Taxable amount' if inv.type=='GST' else 'Total amount','taxable'),('CGST','cgst'),('SGST','sgst'),('IGST','igst'),('Credit notes','credit'),('Refunded','refunded'),('Round off','round_off'),('Grand total','total'),('Received','received'),('Balance due','balance')] %}
-      {% if key not in ['round_off','credit','refunded','cgst','sgst','igst'] or inv.get(key,0) %}
+      {% if key not in ['discount','round_off','credit','refunded','cgst','sgst','igst'] or inv.get(key,0) %}
         <div class="summary-line {{ 'grand' if key == 'total' else '' }}">
           <span>{{ label }}</span>
           <strong>{{ inv[key]|inr }}</strong>

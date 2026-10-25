@@ -69,7 +69,7 @@ def build_ledger_invoice_pdf(inv):
         result += [table(rows,widths,True),Spacer(1,font*1.5)]
         totals=[]
         for label,key in [('Subtotal','subtotal'),('Discount','discount'),('Taxable amount' if gst else 'Total amount','taxable'),('CGST','cgst'),('SGST','sgst'),('IGST','igst'),('Credit notes','credit'),('Refunded','refunded'),('Round off','round_off'),('Grand total','total'),('Received','received'),('Balance due','balance')]:
-            if key in ('cgst','sgst','igst','credit','refunded','round_off') and not inv.get(key): continue
+            if key in ('discount','cgst','sgst','igst','credit','refunded','round_off') and not inv.get(key): continue
             totals.append([p(label,grand if key=='total' else normal),p(money(inv.get(key,0)),grand_right if key=='total' else right)])
         total_table=table(totals,[170,110]);total_table.hAlign='RIGHT';total_table.setStyle(TableStyle([('LINEBELOW',(0,0),(-1,-1),.4,line)]))
         result += [total_table,Spacer(1,font*1.5)]
