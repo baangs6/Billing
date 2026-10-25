@@ -333,12 +333,34 @@ def create_app(database=None, backend=None):
         rows=db().find('invoices',{'status':'FINAL','deleted':{'$ne':True}},sort=[('date',1),('id',1)])
         for row in rows:
             row['service_due']=month_add(date.fromisoformat(row['date']),12).isoformat()
+        rows.extend(dict(row,manual=True,snapshot=dict(customer=dict(name=row['customer_name'],data=dict(phone=row.get('phone',''))))) for row in settings().get('manual_service_reminders',[]))
+        for row in rows:
             row['service_stage']='completed' if row.get('service_completed_at') else 'due' if row['service_due']<=today() else 'upcoming'
-        return rows
+        return sorted(rows,key=lambda row:row['service_due'])
 
     @app.route('/service-reminders',methods=['GET','POST'])
     def service_reminders_page():
         if request.method=='POST':
+            if request.form.get('action')=='add_manual':
+                values=settings();rows=list(values.get('manual_service_reminders',[]));token=request.form.get('submission','')
+                if len(token)!=64: raise ValueError('Refresh the page before adding a reminder.')
+                if any(row['id']==token for row in rows): return redirect(url_for('service_reminders_page'))
+                if len(rows)>=1000: raise ValueError('This company has reached the 1,000 manual reminder limit.')
+                customer=owned('customers',request.form.get('customer'))
+                due=date.fromisoformat(request.form.get('service_due','')).isoformat()
+                notes=request.form.get('notes','').strip()
+                rows.append(dict(id=token,customer_name=customer['name'],customer_id=customer['id'],phone=customer.get('data',{}).get('phone',''),service_due=due,notes=notes,date=today(),service_completed_at=''))
+                values['manual_service_reminders']=rows;db().update('business_settings',{},dict(data=values))
+                audit('create_service','customer',customer['id'],'Manual reminder due '+due)
+                flash('Service reminder added.');return redirect(url_for('service_reminders_page',stage='due' if due<=today() else 'upcoming'))
+            if request.form.get('manual')=='1':
+                values=settings();rows=list(values.get('manual_service_reminders',[]))
+                row=next((row for row in rows if row['id']==request.form.get('id')),None)
+                if not row: abort(404)
+                if row['service_due']>today(): raise ValueError('This service reminder is not due yet.')
+                row['service_completed_at']=today();values['manual_service_reminders']=rows
+                db().update('business_settings',{},dict(data=values));audit('complete_service','customer',row['customer_id'],'Manual reminder completed')
+                flash('Service reminder marked completed.');return redirect(url_for('service_reminders_page'))
             inv=invoice(request.form.get('id'))
             if inv['status']!='FINAL' or inv.get('deleted'): raise ValueError('Only active invoices have service reminders.')
             if str(inv['version'])!=request.form.get('version'): raise ValueError('Invoice changed. Reload the reminders before updating.')
@@ -350,7 +372,7 @@ def create_app(database=None, backend=None):
         stage=request.args.get('stage','due')
         if stage not in ('due','upcoming','completed'): raise ValueError('Choose a valid reminder stage.')
         rows=[row for row in service_reminders() if row['service_stage']==stage]
-        return render_template('service_reminders.html',title='Service reminders',rows=rows,stage=stage)
+        return render_template('service_reminders.html',title='Service reminders',rows=rows,stage=stage,customers=db().find('customers',{'archived':{'$ne':True}},sort=[('name',1)]),submission=secrets.token_hex(32))
 
     def public_home():
         platform=Platform(backend)

@@ -74,3 +74,6 @@ Pre-discount invoice item amounts (2026-10-25): HTML print and A4/A5/thermal PDF
 
 
 MRP presentation (2026-10-25): removed separate Rate column from invoice HTML and A4/A5 PDFs. MRP displays bracketed percentage based solely on saved MRP minus selling rate, excluding common discount. Thermal also shows MRP/percentage. Amount remains selling rate times quantity, with common discount only in totals. Missing/zero MRP avoids division by zero; exact unit rates supported. All 41 selected PDF/helper/HTML tests passed in 24.14 seconds; A5 example visually verified. No data rewrite.
+
+
+Manual service reminders (2026-10-25): invoice-edit users can add customer/due-date/notes reminders independently of invoices. Existing invoice annual reminders remain. Both sources feed due/upcoming/completed views and dashboard counts. Manual records are tenant-scoped in business settings, capped at 1000 to bound document size; full company reset removes them. Submission tokens prevent duplicate creation. Two isolated tests passed in 27.70 seconds covering creation, replay, dashboard count, completion, missing customer, invalid date and role denial. No live reminder or invoice created during testing.

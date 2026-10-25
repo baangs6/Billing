@@ -1,6 +1,7 @@
 {% extends 'base.html' %}
 
-{% block subtitle %}Annual service follow-ups, due one year after each active invoice date. Reminders appear here in the workspace.{% endblock %}
+{% block subtitle %}Annual invoice follow-ups and manually scheduled services. Reminders appear here and in the dashboard count.{% endblock %}
+{% block actions %}{% if 'invoice.edit' in policy.permissions %}<a class="primary" href="/service-reminders?add=1#add-service-reminder">＋ Add service reminder</a>{% endif %}{% endblock %}
 
 {% block content %}
 <section class="panel">
@@ -32,7 +33,7 @@
           <td><strong>{{ row.snapshot.customer.name }}</strong></td>
           <td>{{ row.snapshot.customer.data.phone or '—' }}</td>
           <td>
-            <a class="strong" href="/invoices/{{ row.id }}">{{ row.number }}</a>
+            {% if row.manual %}<strong>Manual reminder</strong><small>{{ row.notes }}</small>{% else %}<a class="strong" href="/invoices/{{ row.id }}">{{ row.number }}</a>{% endif %}
             <small>{{ row.date }}</small>
           </td>
           <td>
@@ -43,10 +44,11 @@
           </td>
           <td>
             {% if stage == 'due' and 'invoice.edit' in policy.permissions %}
-              <form method="post" class="confirm" data-confirm="Mark this invoice's annual service reminder completed?">
+              <form method="post" class="confirm" data-confirm="Mark this service reminder completed?">
                 <input type="hidden" name="csrf" value="{{ csrf }}">
                 <input type="hidden" name="id" value="{{ row.id }}">
                 <input type="hidden" name="version" value="{{ row.version }}">
+                {% if row.manual %}<input type="hidden" name="manual" value="1">{% endif %}
                 <button class="secondary">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
                   Mark completed
@@ -68,4 +70,14 @@
     </table>
   </div>
 </section>
+{% if 'invoice.edit' in policy.permissions %}
+<details class="panel padded" id="add-service-reminder" {{ 'open' if request.args.get('add') else '' }}><summary class="secondary">＋ Add service reminder</summary>
+<form method="post" class="form-grid padded">
+  <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="add_manual"><input type="hidden" name="submission" value="{{ submission }}">
+  <label>Customer<select name="customer" required><option value="">Choose customer</option>{% for customer in customers %}<option value="{{ customer.id }}">{{ customer.name }}{% if customer.data.phone %} · {{ customer.data.phone }}{% endif %}</option>{% endfor %}</select></label>
+  <label>Service due date<input type="date" name="service_due" value="{{ today }}" required></label>
+  <label class="full">Service details / notes<textarea name="notes" maxlength="2500" rows="3" placeholder="For example: annual filter replacement"></textarea></label>
+  <div class="full"><button class="primary">Save reminder</button></div>
+</form></details>
+{% endif %}
 {% endblock %}
