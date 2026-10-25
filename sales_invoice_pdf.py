@@ -60,23 +60,23 @@ def build_sales_invoice_pdf(inv):
     for key,label in [('po_number','PO number'),('vehicle_number','Vehicle'),('eway_bill','E-way bill'),('due_date','Due date'),('installation','Installation'),('service','Service')]:
         if snapshot.get(key): dated.append(p(label+': '+snapshot[key]))
     story.append(table([[bill,number,dated]],[width*.5,width*.25,width*.25]))
-    headings=['S.NO.','ITEMS / HSN' if gst else 'ITEMS','QTY.','MRP']+(['GST / TAX'] if columns_gst else [])+['AMOUNT']
-    widths=[36,width-36-48-70-95-(68 if columns_gst else 0),48,70]+([68] if columns_gst else [])+[95]
+    headings=['S.NO.','ITEMS / HSN' if gst else 'ITEMS','QTY.','RATE','MRP']+(['GST / TAX'] if columns_gst else [])+['AMOUNT']
+    widths=[30,width-30-44-65-60-85-(65 if columns_gst else 0),44,65,60]+([65] if columns_gst else [])+[85]
     rows=[[p(label,bold) for label in headings]]
     products=[item for item in inv['items'] if not item.get('is_charge')]
     charges=[item for item in inv['items'] if item.get('is_charge')]
     for n,item in enumerate(products,1):
         label=item['name']+('\n'+item.get('hsn','') if gst and item.get('hsn') else '')
-        if item.get('unit_rate_decimal') or item.get('pricing_mode')=='INCLUSIVE': label+='\nRate: '+rate_text(item)+(' incl. GST' if gst and item.get('pricing_mode')=='INCLUSIVE' else '')
+        if gst and item.get('pricing_mode')=='INCLUSIVE': label+='\nRate incl. GST'
         if preferences.get('show_description') and item.get('description'): label+='\n'+item['description']
         mrp=f"{item['mrp']/100:,.2f}"
         basis=item['mrp']*Decimal(item['quantity'])/1000
         if 'common_discount' not in inv and basis>item['taxable'] and basis>0: mrp+=f"\n({(basis-item['taxable'])/basis*100:.2f}% OFF)"
-        values=[p(n,center),p(label),p(f"{Decimal(item['quantity'])/1000:g} {item['unit']}",center),p(mrp,right)]
+        values=[p(n,center),p(label),p(f"{Decimal(item['quantity'])/1000:g} {item['unit']}",center),p(rate_text(item),right),p(mrp,right)]
         if columns_gst: values.append(p(f"{item['gst']}%\n{money(item['tax'])}",right))
         values.append(p(money(item['total']),right)); rows.append(values)
     for item in charges:
-        values=[p(''),p(item['name']+('\nHSN/SAC: '+item['hsn'] if item.get('hsn') else ''),right),p('-',center),p('-',right)]
+        values=[p(''),p(item['name']+('\nHSN/SAC: '+item['hsn'] if item.get('hsn') else ''),right),p('-',center),p('-',right),p('-',right)]
         if columns_gst: values.append(p(f"{item['gst']}%\n{money(item['tax'])}",right))
         values.append(p(money(item['total']),right)); rows.append(values)
     if inv['discount']:
@@ -88,7 +88,7 @@ def build_sales_invoice_pdf(inv):
     if inv.get('round_off'):
         rows.append([p(''),p('Round off',right)]+[p('') for _ in headings[2:-1]]+[p(money(inv['round_off']),right)])
     quantity=Decimal(sum(item['quantity'] for item in products))/1000
-    rows.append([p(''),p('TOTAL' if gst else 'Total amount',bold),p(f'{quantity:g}',center),p('')]+([p('')] if columns_gst else [])+[p(money(inv['total']),bold)])
+    rows.append([p(''),p('TOTAL' if gst else 'Total amount',bold),p(f'{quantity:g}',center),p(''),p('')]+([p('')] if columns_gst else [])+[p(money(inv['total']),bold)])
     story.append(table(rows,widths,repeat=1,commands=[('BACKGROUND',(0,0),(-1,0),colors.HexColor('#e8eff8' if theme=='A4_ADVANCED' else '#f7f7f7' if theme=='A4_SIMPLE' else '#e2e2e2')),('BACKGROUND',(0,-1),(-1,-1),colors.HexColor('#e8eff8' if theme=='A4_ADVANCED' else '#f7f7f7' if theme=='A4_SIMPLE' else '#e2e2e2'))]))
     story.append(Spacer(1,4))
     story.append(table([[p('Received Amount: '+money(inv['received'])+(' | Refunded: '+money(inv['refunded']) if inv.get('refunded') else '')),p('Balance due: '+money(inv['balance'])+(' | Credit notes: '+money(inv['credit']) if inv.get('credit') else ''),right)]],[width/2,width/2]))

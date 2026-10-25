@@ -9,6 +9,20 @@ def sample_invoice(theme='A4_CLASSIC',layout='CLASSIC'):
     return dict(number='INV/26-27/001',date='2026-10-02',status='FINAL',type='NON-GST',total=20000,subtotal=20000,taxable=20000,discount=0,cgst=0,sgst=0,igst=0,received=0,balance=20000,copy_label='DUPLICATE COPY',snapshot=dict(business=business,customer=dict(name='Example Customer',data=dict(address='Customer Road',state='Tamil Nadu',pin='',phone='',gstin='',shipping_address='Delivery address',pan='ABCDE1234F')),previous_balance=1000,eway_bill='123456789012',terms='Thank you.',notes='Deliver carefully.'),items=[dict(name='Desk lamp',description='',quantity=2000,rate=10000,mrp=12000,discount=0,unit='PCS',hsn='9405',gst='0',tax=0,taxable=20000,total=20000)])
 
 
+@pytest.mark.parametrize('theme',['A5','A4_CLASSIC','A4_SIMPLE','A4_ADVANCED'])
+@pytest.mark.parametrize('gst',[False,True])
+def test_rate_column_shows_saved_rate_separately_from_mrp(theme,gst):
+    inv=sample_invoice(theme)
+    if gst: inv['type']='GST'
+    inv['items'][0]['rate']=9876
+    inv['items'].append(dict(name='Service charge',is_charge=True,quantity=1000,rate=5000,mrp=0,discount=0,unit='CHARGE',hsn='9987',gst='0',tax=0,taxable=5000,total=5000))
+    with pymupdf.open(stream=build_sales_invoice_pdf(inv),filetype='pdf') as document:
+        text=''.join(page.get_text() for page in document)
+        assert 'RATE' in text and '98.76' in text and '120.00' in text
+        for page in document:
+            assert all(block[0]>=0 and block[2]<=page.rect.width+1 for block in page.get_text('blocks'))
+
+
 @pytest.mark.parametrize('theme',['THERMAL_58','THERMAL_80'])
 @pytest.mark.parametrize('layout',['COMPACT','SIMPLE','CLASSIC','ADVANCED'])
 def test_thermal_layouts_and_duplicate_fit_paper(theme,layout):
