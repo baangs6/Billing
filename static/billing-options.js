@@ -4,7 +4,7 @@
  const customer=document.querySelector('#customer'),walk=document.querySelector('#walk-in'),search=document.querySelector('#customer-search');
  const day=document.querySelector('#invoice-date'),due=document.querySelector('#due-date'),info=document.querySelector('#customer-info');
  const fmt=value=>new Intl.NumberFormat('en-IN',{style:'currency',currency:'INR'}).format(value/100);
- function showCustomer(resetDue=false){
+ function showCustomer(){
   const state=document.querySelector('#walk-in-state'),stateLabel=document.querySelector('#walk-in-state-label');
   if(state){state.disabled=!walk?.checked;stateLabel.hidden=!walk?.checked;}
   const party=data.customers.find(row=>String(row.id)===customer.value);
@@ -13,9 +13,9 @@
    const values=[['Billing',party.data.address],['Shipping',party.data.shipping_address],['State',party.data.state],['PIN',party.data.pin],['Phone',party.data.phone],['GSTIN',party.data.gstin],['PAN',party.data.pan],['Credit period',(party.data.credit_days||0)+' days'],['Previous balance',fmt(party.previous_balance||0)]];
    for(const [label,value] of values){if(value){const line=document.createElement('span');line.style.display='block';line.textContent=label+': '+value;info.append(line);}}
   }else if(walk?.checked){info.textContent='Anonymous walk-in sale. Full payment is required; no customer profile is created.';}
-  if(day.value){due.min=day.value;if(resetDue||!due.value){const date=new Date(day.value+'T00:00:00Z');date.setUTCDate(date.getUTCDate()+(walk?.checked?0:Number(party?.data.credit_days||0)));due.value=date.toISOString().slice(0,10);}}
+  due.min=day.value||'';
  }
- customer.addEventListener('change',()=>showCustomer(true));day.addEventListener('change',()=>showCustomer(true));
+ customer.addEventListener('change',showCustomer);day.addEventListener('change',showCustomer);
  walk?.addEventListener('change',()=>{search.disabled=walk.checked;search.value=walk.checked?'Walk-in customer':'';customer.value=walk.checked?'walk-in':'';document.querySelector('#customer-results').hidden=true;customer.dispatchEvent(new Event('change'));});
  document.addEventListener('billing-customer-created',event=>data.customers.push(event.detail));
  if(walk?.checked){search.disabled=true;search.value='Walk-in customer';}showCustomer();

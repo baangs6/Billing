@@ -97,3 +97,24 @@ def test_walk_in_interstate_tax_and_no_orphan_customer(workspace):
     assert inv['igst']==3600 and inv['cgst']==0 and inv['sgst']==0
     assert backend.database.customers.count_documents({})==1
     assert client.get('/billing?edit=1').status_code==200
+
+
+def test_blank_due_date_stays_optional_on_create_edit_and_exports(workspace):
+    import pymupdf
+    client,post,backend=workspace
+    post('/customers',dict(id='1',name='Anita Stores',credit_days='30'))
+    assert post('/billing',payload()|dict(due_date='')).status_code==302
+    assert backend.database.invoices.find_one({'id':1})['snapshot']['due_date']==''
+    html=client.get('/invoices/1').get_data(as_text=True)
+    assert 'Due date:' not in html
+    for suffix in ('','?format=thermal80','?format=saved'):
+        response=client.get('/invoices/1/pdf'+suffix)
+        assert response.status_code==200
+        with pymupdf.open(stream=response.data,filetype='pdf') as doc:
+            text=''.join(page.get_text() for page in doc)
+            assert 'Due date:' not in text and 'Due:' not in text
+    assert post('/billing',payload(id='1',version='1')|dict(due_date='2026-12-01')).status_code==302
+    assert b'Due date:' in client.get('/invoices/1').data
+    assert post('/billing',payload(id='1',version='2')|dict(due_date='')).status_code==302
+    assert backend.database.invoices.find_one({'id':1})['snapshot']['due_date']==''
+    assert b'Due date:' not in client.get('/invoices/1').data

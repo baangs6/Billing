@@ -1,11 +1,12 @@
 """Validation shared by the billing form and saved invoice snapshots."""
-from datetime import date, timedelta
+from datetime import date
 from decimal import Decimal, InvalidOperation
 
 
-def due_date(day, value, credit_days=0):
+def due_date(day, value):
     start = date.fromisoformat(day)
-    due = date.fromisoformat(value) if value else start + timedelta(days=credit_days)
+    if not value: return ''
+    due = date.fromisoformat(value)
     if due < start:
         raise ValueError('Due date cannot be before the invoice date.')
     return due.isoformat()

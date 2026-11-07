@@ -97,7 +97,7 @@
         <input type="date" id="invoice-date" name="date" class="stitch-input" value="{{ edit.date if edit and not duplicate else today }}" required>
       </div>
 
-      <div class="stitch-field"><label class="stitch-label" for="due-date">Due date</label><input type="date" id="due-date" name="due_date" class="stitch-input" value="{{ edit.snapshot.get('due_date','') if edit and not duplicate else '' }}"><small>Calculated from customer credit days; you can change it.</small></div>
+      <div class="stitch-field"><label class="stitch-label" for="due-date">Due date <span class="stitch-label-optional">Optional</span></label><input type="date" id="due-date" name="due_date" class="stitch-input" value="{{ edit.snapshot.get('due_date','') if edit and not duplicate else '' }}"><small>Leave blank to omit the due date from the invoice.</small></div>
       <!-- Invoice type -->
       <div class="stitch-field">
         <label class="stitch-label" for="invoice-type">Invoice type</label>
